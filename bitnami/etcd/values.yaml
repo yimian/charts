@@ -50,22 +50,6 @@ commonAnnotations: {}
 
 ## Force target Kubernetes version (using Helm capabilities if not set)
 ##
-statefulset:
-  ## Number of replicas
-  ##
-  replicaCount: 3
-  ## Update strategy, can be set to RollingUpdate or OnDelete by default.
-  ## https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#updating-statefulsets
-  ##
-  updateStrategy: RollingUpdate
-  ## Partition update strategy
-  ## https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#partitions
-  ##
-  # rollingUpdatePartition:
-  ## Pod management policy
-  ## https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#pod-management-policies
-  ##
-  podManagementPolicy: Parallel
 kubeVersion: ""
 
 ## Kubernetes Cluster Domain
@@ -247,7 +231,7 @@ args: []
 
 ## Number of replicas
 ##
-replicaCount: 1
+replicaCount: 3
 
 ## Update strategy
 ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
