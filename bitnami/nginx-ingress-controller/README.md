@@ -157,6 +157,7 @@ The following tables lists the configurable parameters of the Nginx Ingress Cont
 | `defaultBackend.image.pullSecrets`         | Specify docker-registry secret names as an array                                          | `[]` (does not add image pull secrets to deployed pods) |
 | `defaultBackend.extraArgs`                 | Additional command line arguments to pass to NGINX container                              | `{}`                                                    |
 | `defaultBackend.containerPort`             | HTTP container port number                                                                | `8080`                                                  |
+| `defaultBackend.serverBlockConfig`         | NGINX backend default server block configuration                                          | Check `values.yaml` file                                |
 | `defaultBackend.replicaCount`              | Desired number of default backend pods                                                    | `1`                                                     |
 | `defaultBackend.podSecurityContext`        | Default backend pods' Security Context                                                    | Check `values.yaml` file                                |
 | `defaultBackend.containerSecurityContext`  | Default backend containers' Security Context                                              | Check `values.yaml` file                                |
@@ -192,7 +193,7 @@ The following tables lists the configurable parameters of the Nginx Ingress Cont
 | `service.clusterIP`                | Controller Internal Cluster Service IP                                                                                                 | `""`           |
 | `service.omitClusterIP`            | To omit the `ClusterIP` from the controller service                                                                                    | `false`        |
 | `service.ports.http`               | Controller Service HTTP port                                                                                                           | `80`           |
-| `service.ports.https`              | Controller Service HTTPS port                                                                                                          | `""`           |
+| `service.ports.https`              | Controller Service HTTPS port                                                                                                          | `443`           |
 | `service.targetPorts.http`         | Map the controller service HTTP port                                                                                                   | `http`         |
 | `service.targetPorts.https`        | Map the controller service HTTPS port                                                                                                  | `https`        |
 | `service.externalTrafficPolicy`    | Enable client source IP preservation                                                                                                   | `Cluster`      |

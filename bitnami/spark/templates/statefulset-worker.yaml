@@ -13,6 +13,7 @@ metadata:
 spec:
   serviceName: {{ template "common.names.fullname" . }}-headless
   replicas: {{ .Values.worker.replicaCount }}
+  podManagementPolicy: {{ .Values.worker.podManagementPolicy }}
   selector:
     matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
       app.kubernetes.io/component: worker
@@ -58,6 +59,10 @@ spec:
         {{- if .Values.worker.securityContext.seLinuxOptions }}
         seLinuxOptions: {{- include "common.tplvalues.render" (dict "value" .Values.worker.securityContext.seLinuxOptions "context" $) | nindent 10 }}
         {{- end }}
+      {{- end }}
+      {{- if .Values.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       {{- end }}
       containers:
         - name: spark-worker

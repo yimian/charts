@@ -67,13 +67,14 @@ The following tables lists the configurable parameters of the spark chart and th
 
 ### Spark parameters
 
-| Parameter           | Description                                      | Default                                                 |
-|---------------------|--------------------------------------------------|---------------------------------------------------------|
-| `image.registry`    | spark image registry                             | `docker.io`                                             |
-| `image.repository`  | spark Image name                                 | `bitnami/spark`                                         |
-| `image.tag`         | spark Image tag                                  | `{TAG_NAME}`                                            |
-| `image.pullPolicy`  | spark image pull policy                          | `IfNotPresent`                                          |
-| `image.pullSecrets` | Specify docker-registry secret names as an array | `[]` (does not add image pull secrets to deployed pods) |
+| Parameter           | Description                                                                             | Default                                                 |
+|---------------------|-----------------------------------------------------------------------------------------|---------------------------------------------------------|
+| `image.registry`    | spark image registry                                                                    | `docker.io`                                             |
+| `image.repository`  | spark Image name                                                                        | `bitnami/spark`                                         |
+| `image.tag`         | spark Image tag                                                                         | `{TAG_NAME}`                                            |
+| `image.pullPolicy`  | spark image pull policy                                                                 | `IfNotPresent`                                          |
+| `image.pullSecrets` | Specify docker-registry secret names as an array                                        | `[]` (does not add image pull secrets to deployed pods) |
+| `hostNetwork`       | Use Host-Network for the PODs (if true, also dnsPolicy: ClusterFirstWithHostNet is set) | `false`                                                 |
 
 ### Spark master parameters
 
@@ -132,6 +133,7 @@ The following tables lists the configurable parameters of the spark chart and th
 | `worker.javaOptions`                        | Set options for the JVM in the form `-Dx=y`                                                                                                                                          | No default                                  |
 | `worker.configOptions`                      | Set extra options to configure the worker in the form `-Dx=y`                                                                                                                        | No default                                  |
 | `worker.replicaCount`                       | Set the number of workers                                                                                                                                                            | `2`                                         |
+| `worker.podManagementPolicy`                | Statefulset Pod Management Policy Type                                                                                                                                               | `OrderedReady`                              |
 | `worker.autoscaling.enabled`                | Enable autoscaling depending on CPU                                                                                                                                                  | `false`                                     |
 | `worker.autoscaling.CpuTargetPercentage`    | k8s hpa cpu targetPercentage                                                                                                                                                         | `50`                                        |
 | `worker.autoscaling.replicasMax`            | Maximum number of workers when using autoscaling                                                                                                                                     | `5`                                         |

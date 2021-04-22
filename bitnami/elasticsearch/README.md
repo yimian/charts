@@ -63,8 +63,8 @@ The following table lists the configurable parameters of the Elasticsearch chart
 | `image.tag`                                       | Elasticsearch image tag                                                                                                                                           | `{TAG_NAME}`                                                 |
 | `image.pullPolicy`                                | Image pull policy                                                                                                                                                 | `IfNotPresent`                                               |
 | `image.pullSecrets`                               | Specify docker-registry secret names as an array                                                                                                                  | `[]` (does not add image pull secrets to deployed pods)      |
-| `nameOverride`                                    | String to partially override elasticsearch.fullname template with a string (will prepend the release name)                                                        | `nil`                                                        |
-| `fullnameOverride`                                | String to fully override elasticsearch.fullname template with a string                                                                                            | `nil`                                                        |
+| `nameOverride`                                    | String to partially override common.names.fullname template with a string (will prepend the release name)                                                        | `nil`                                                        |
+| `fullnameOverride`                                | String to fully override common.names.fullname template with a string                                                                                            | `nil`                                                        |
 | `name`                                            | Elasticsearch cluster name                                                                                                                                        | `elastic`                                                    |
 | `plugins`                                         | Comma, semi-colon or space separated list of plugins to install at initialization                                                                                 | `nil`                                                        |
 | `snapshotRepoPath`                                | File System snapshot repository path                                                                                                                              | `nil`                                                        |
@@ -281,6 +281,7 @@ The following table lists the configurable parameters of the Elasticsearch chart
 | `curator.envFromSecrets.*.from.key`               | - `secretKeyRef.key` used for environment variable                                                                                                                |                                                              |
 | `metrics.enabled`                                 | Enable prometheus exporter                                                                                                                                        | `false`                                                      |
 | `metrics.name`                                    | Metrics pod name                                                                                                                                                  | `metrics`                                                    |
+| `metrics.extraArgs`                               | Extra arguments to add to the default exporter command                                                                                                            | `[]`                                                         |
 | `metrics.hostAliases`                             | Add deployment host aliases                                                                                                                                       | `[]`                                                         |
 | `metrics.image.registry`                          | Metrics exporter image registry                                                                                                                                   | `docker.io`                                                  |
 | `metrics.image.repository`                        | Metrics exporter image repository                                                                                                                                 | `bitnami/elasticsearch-exporter`                             |
@@ -435,6 +436,14 @@ You can enable this initContainer by setting `volumePermissions.enabled` to `tru
 Find more information about how to deal with common errors related to Bitnami’s Helm charts in [this troubleshooting guide](https://docs.bitnami.com/general/how-to/troubleshoot-helm-chart-issues).
 
 ## Upgrading
+
+### To 15.0.0
+
+From this version onwards, Elasticsearch container components are now licensed under the [Elastic License](https://www.elastic.co/licensing/elastic-license) that is not currently accepted as an Open Source license by the Open Source Initiative (OSI).
+
+Also, from now on, the Helm Chart will include the X-Pack plugin installed by default.
+
+Regular upgrade is compatible from previous versions.
 
 ### To 14.0.0
 

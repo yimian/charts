@@ -20,6 +20,9 @@ spec:
     metadata:
       labels: {{- include "common.labels.standard" . | nindent 8 }}
         app.kubernetes.io/component: query
+        {{- if and $query.enabled $query.podLabels }}
+        {{- include "common.tplvalues.render" (dict "value" $query.podLabels "context" $) | nindent 8 }}
+        {{- end }}
       {{- if or (include "thanos.query.createSDConfigmap" .) $query.existingSDConfigmap $query.podAnnotations }}
       annotations:
         {{- if or (include "thanos.query.createSDConfigmap" .) $query.existingSDConfigmap }}
@@ -64,6 +67,7 @@ spec:
           args:
             - query
             - --log.level={{ $query.logLevel }}
+            - --log.format={{ $query.logFormat }}
             - --grpc-address=0.0.0.0:10901
             - --http-address=0.0.0.0:10902
             {{- if kindIs "string" $query.replicaLabel }}
@@ -116,6 +120,10 @@ spec:
             {{- if $query.extraFlags }}
             {{- $query.extraFlags | toYaml | nindent 12 }}
             {{- end }}
+          {{- if .Values.query.extraEnv }}
+          env:
+            {{- toYaml .Values.query.extraEnv | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 10902
@@ -146,6 +154,9 @@ spec:
             - name: tls-client
               mountPath: /tls/client
       {{- end }}
+            {{- if .Values.query.extraVolumeMounts }}
+            {{- include "common.tplvalues.render" (dict "value" .Values.query.extraVolumeMounts "context" $) | nindent 12 }}
+            {{- end }}
       volumes:
       {{- if or (include "thanos.query.createSDConfigmap" .) $query.existingSDConfigmap }}
         - name: sd-config
@@ -162,4 +173,8 @@ spec:
           secret:
             secretName: {{ include "common.secrets.name" (dict "existingSecret" .Values.query.grpcTLS.client.existingSecret "defaultNameSuffix" "query-tls-client" "context" $) }}
       {{- end }}
+        {{- if .Values.query.extraVolumes }}
+        {{- include "common.tplvalues.render" (dict "value" .Values.query.extraVolumes "context" $) | nindent 8 }}
+        {{- end }}
+
 {{- end }}
