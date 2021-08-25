@@ -769,15 +769,15 @@ prometheus:
   ## Note that the prometheus will fail to provision if the correct secret does not exist.
   ##
   additionalScrapeConfigs:
-    enabled: false
+    enabled: true
     type: external
     external:
       ## Name of the secret that Prometheus should use for the additional scrape configuration
       ##
-      name: ""
+      name: "additional-scrape-configs"
       ## Name of the key inside the secret to be used for the additional scrape configuration.
       ##
-      key: ""
+      key: "prometheus-additional.yaml"
     internal:
       jobList: []
 
