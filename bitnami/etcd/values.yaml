@@ -64,11 +64,11 @@ extraDeploy: []
 ## - 'periodic' for duration based retention, defaulting to hours if no time unit is provided (e.g. ‘5m’).
 ## - 'revision' for revision number based retention.
 ##
-# autoCompactionMode: periodic
+autoCompactionMode: periodic
 
 ## Auto compaction retention for mvcc key value store in hour, by default 0, means disabled
 ##
-# autoCompactionRetention: 0
+autoCompactionRetention: 20m
 
 ## Authentication parameters
 ##
@@ -80,7 +80,7 @@ auth:
     enabled: false
     ## Allow to use etcd without configuring RBAC authentication
     ##
-    # allowNoneAuthentication: true
+    allowNoneAuthentication: true
     ## root user password. The root user is always `root`
     ##
     # rootPassword: ""
@@ -168,39 +168,6 @@ removeMemberOnContainerTermination: true
 ##    foo: bar
 ##    baz:
 ##
-service:
-  ## K8s service type
-  ##
-  type: NodePort
-  ## etcd client port
-  ##
-  port: 2379
-  ## etcd client port name override
-  ##
-  clientPortNameOverride: ""
-  ## etcd peer port
-  ##
-  peerPort: 2380
-  ## etcd peer port name override
-  ##
-  peerPortNameOverride: ""
-  ## Specify the nodePort(s) value(s) for the LoadBalancer and NodePort service types.
-  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
-  ##
-  nodePorts:
-    clientPort: "30030"
-    peerPort: ""
-  ## Set the LoadBalancer service type to internal only.
-  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
-  ##
-  # loadBalancerIP:
-  # loadBalancerSourceRanges: ["10.0.0.0/8"]
-  externalIPs: []
-  ## Provide any additional annotations which may be required. This can be used to
-  ## set the LoadBalancer service type to internal only.
-  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
-  ##
-  annotations: {}
 # configuration:
 
 ## Existing ConfigMap with etcd configuration
@@ -266,29 +233,6 @@ containerPorts:
 ##
 podSecurityContext:
   enabled: true
-  ## Persistent Volume Storage Class
-  ## If defined, storageClassName: <storageClass>
-  ## If set to "-", storageClassName: "", which disables dynamic provisioning
-  ## If undefined (the default) or set to null, no storageClassName spec is
-  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
-  ##   GKE, AWS & OpenStack)
-  ##
-  storageClass: "nfs-client"
-  ## Persistent Volume Claim annotations
-  ##
-  annotations: {}
-  ## Persistent Volume Access Mode
-  ##
-  accessModes:
-    - ReadWriteOnce
-  ## Persistent Volume size
-  ##
-  size: 8Gi
-  ## Persistent Volume selector
-  ## Can specify a label selector to further filter the set of volumes.
-  ## ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#selector
-  ##
-  selector: {}
   fsGroup: 1001
 
 ## etcd pods' Security Context
@@ -466,7 +410,7 @@ pdb:
 service:
   ## K8s service type
   ##
-  type: ClusterIP
+  type: NodePort
   ## etcd client port
   ##
   port: 2379
@@ -483,7 +427,7 @@ service:
   ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
   ##
   nodePorts:
-    clientPort: ""
+    clientPort: "30030"
     peerPort: ""
   ## loadBalancerIP for the etcd service (optional, cloud specific)
   ## ref: http://kubernetes.io/docs/user-guide/services/#type-loadbalancer
@@ -538,18 +482,19 @@ persistence:
   ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
   ##   GKE, AWS & OpenStack)
   ##
-  # storageClass: "-"
-  ## Persistent Volume Claim annotations (evaluated as a template)
+  storageClass: "nfs-client"
+  ## Persistent Volume Claim annotations
   ##
   annotations: {}
-  ## Persistent Volume Access Modes
+  ## Persistent Volume Access Mode
   ##
   accessModes:
     - ReadWriteOnce
   ## Persistent Volume size
   ##
   size: 8Gi
-  ## Provide any additional label selector to further filter the set of volumes (evaluated as a template)
+  ## Persistent Volume selector
+  ## Can specify a label selector to further filter the set of volumes.
   ## ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/#selector
   ##
   selector: {}
