@@ -623,7 +623,7 @@ prometheus:
 
   ## How long to retain metrics
   ##
-  retention: 10d
+  retention: 90d
 
   ## Maximum size of metrics
   ##
@@ -1335,12 +1335,12 @@ exporters:
   node-exporter:
     ## Enable node-exporter
     ##
-    enabled: true
+    enabled: false
 
   kube-state-metrics:
     ## Enable kube-state-metrics
     ##
-    enabled: true
+    enabled: false
 
 ## Node Exporter deployment configuration
 ##
@@ -1366,7 +1366,7 @@ kube-state-metrics:
 kubeApiServer:
   ## Create a ServiceMonitor to scrape kube-apiserver service
   ##
-  enabled: true
+  enabled: false
 
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
@@ -1389,7 +1389,7 @@ kubeApiServer:
 kubeControllerManager:
   ## Create a ServiceMonitor to scrape kube-controller-manager service
   ##
-  enabled: true
+  enabled: false
 
   ## If your kube controller manager is not deployed as a pod, specify IPs it can be found on
   ##
@@ -1443,7 +1443,7 @@ kubeControllerManager:
 kubeScheduler:
   ## Create a ServiceMonitor to scrape kube-scheduler service
   ##
-  enabled: true
+  enabled: false
 
   ## If your kube scheduler is not deployed as a pod, specify IPs it can be found on
   ##
@@ -1502,7 +1502,7 @@ kubeScheduler:
 ## Component scraping coreDns
 ##
 coreDns:
-  enabled: true
+  enabled: false
 
   ## Namespace where coreDns service is deployed
   ##
@@ -1544,7 +1544,7 @@ coreDns:
 kubeProxy:
   ## Create a ServiceMonitor to scrape kube-proxy service
   ##
-  enabled: true
+  enabled: false
 
   ## If your kube-proxy is not deployed as a pod, specify IPs it can be found on
   ##
@@ -1591,7 +1591,7 @@ kubeProxy:
 kubelet:
   ## Create a ServiceMonitor to scrape kubelet service
   ##
-  enabled: true
+  enabled: false
 
   ## Namespace where kubelet service is deployed
   ##
