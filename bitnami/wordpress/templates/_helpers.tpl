@@ -5,7 +5,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "wordpress.mariadb.fullname" -}}
-{{- printf "%s-mariadb" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- include "common.names.dependency.fullname" (dict "chartName" "mariadb" "chartValues" .Values.mariadb "context" $) -}}
 {{- end -}}
 
 {{/*
@@ -13,7 +13,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "wordpress.memcached.fullname" -}}
-{{- printf "%s-memcached" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- include "common.names.dependency.fullname" (dict "chartName" "memcached" "chartValues" .Values.memcached "context" $) -}}
 {{- end -}}
 
 {{/*
@@ -58,7 +58,7 @@ Return the WordPress configuration secret
 {{- if .Values.existingWordPressConfigurationSecret -}}
     {{- printf "%s" (tpl .Values.existingWordPressConfigurationSecret $) -}}
 {{- else -}}
-    {{- printf "%s-configuration" (include "common.names.fullname" .) -}}
+    {{- printf "%s-configuration" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -67,6 +67,26 @@ Return true if a secret object should be created for WordPress configuration
 */}}
 {{- define "wordpress.createConfigSecret" -}}
 {{- if and .Values.wordpressConfiguration (not .Values.existingWordPressConfigurationSecret) }}
+    {{- true -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return the WordPress Apache configuration configmap
+*/}}
+{{- define "wordpress.apache.configmapName" -}}
+{{- if .Values.existingApacheConfigurationConfigMap -}}
+    {{- printf "%s" (tpl .Values.existingApacheConfigurationConfigMap $) -}}
+{{- else -}}
+    {{- printf "%s-apache-configuration" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return true if a secret object should be created for Apache configuration
+*/}}
+{{- define "wordpress.apache.createConfigmap" -}}
+{{- if and .Values.apacheConfiguration (not .Values.existingApacheConfigurationConfigMap) }}
     {{- true -}}
 {{- end -}}
 {{- end -}}
