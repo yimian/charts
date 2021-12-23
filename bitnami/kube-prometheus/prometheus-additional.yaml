@@ -1,0 +1,6 @@
+- job_name: "nps"
+  scheme: https
+  tls_config:
+    insecure_skip_verify: true
+  static_configs:
+  - targets: ["120.79.11.43:8080"]
