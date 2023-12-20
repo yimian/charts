@@ -1,30 +1,44 @@
+{{- /*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 apiVersion: v1
 kind: Service
 metadata:
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: proxy
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
-    {{- end }}
   name: {{ printf "%s-proxy-api" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" }}
   namespace: {{ .Release.Namespace | quote }}
-  {{- if .Values.commonAnnotations }}
-  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- $versionLabel := dict "app.kubernetes.io/version" ( include "common.images.version" ( dict "imageRoot" .Values.proxy.image "chart" .Chart ) ) }}
+  {{- $labels := include "common.tplvalues.merge" ( dict "values" ( list .Values.commonLabels $versionLabel ) "context" . ) }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: proxy
+  {{- if or .Values.proxy.service.api.annotations .Values.commonAnnotations }}
+  {{- $annotations := include "common.tplvalues.merge" ( dict "values" ( list .Values.proxy.service.api.annotations .Values.commonAnnotations ) "context" . ) }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" $annotations "context" $) | nindent 4 }}
   {{- end }}
 spec:
   type: {{ .Values.proxy.service.api.type }}
-  {{- if (or (eq .Values.proxy.service.api.type "LoadBalancer") (eq .Values.proxy.service.api.type "NodePort")) }}
+  {{- if and .Values.proxy.service.api.clusterIP (eq .Values.proxy.service.api.type "ClusterIP") }}
+  clusterIP: {{ .Values.proxy.service.api.clusterIP }}
+  {{- end }}
+  {{- if or (eq .Values.proxy.service.api.type "LoadBalancer") (eq .Values.proxy.service.api.type "NodePort") }}
   externalTrafficPolicy: {{ .Values.proxy.service.api.externalTrafficPolicy | quote }}
   {{- end }}
-  {{ if eq .Values.proxy.service.api.type "LoadBalancer" }}
+  {{- if and (eq .Values.proxy.service.api.type "LoadBalancer") (not (empty .Values.proxy.service.api.loadBalancerSourceRanges)) }}
   loadBalancerSourceRanges: {{ .Values.proxy.service.api.loadBalancerSourceRanges }}
-  {{ end }}
-  {{- if (and (eq .Values.proxy.service.api.type "LoadBalancer") (not (empty .Values.proxy.service.api.loadBalancerIP))) }}
+  {{- end }}
+  {{- if and (eq .Values.proxy.service.api.type "LoadBalancer") (not (empty .Values.proxy.service.api.loadBalancerIP)) }}
   loadBalancerIP: {{ .Values.proxy.service.api.loadBalancerIP }}
+  {{- end }}
+  {{- if .Values.proxy.service.api.sessionAffinity }}
+  sessionAffinity: {{ .Values.proxy.service.api.sessionAffinity }}
+  {{- end }}
+  {{- if .Values.proxy.service.api.sessionAffinityConfig }}
+  sessionAffinityConfig: {{- include "common.tplvalues.render" (dict "value" .Values.proxy.service.api.sessionAffinityConfig "context" $) | nindent 4 }}
   {{- end }}
   ports:
     - name: http
-      port: {{ .Values.proxy.service.api.port }}
+      port: {{ coalesce .Values.proxy.service.api.ports.http .Values.proxy.service.api.port }}
       targetPort: api
       protocol: TCP
       {{- if (and (or (eq .Values.proxy.service.api.type "NodePort") (eq .Values.proxy.service.api.type "LoadBalancer")) (not (empty .Values.proxy.service.api.nodePorts.http))) }}
@@ -32,5 +46,9 @@ spec:
       {{- else if eq .Values.proxy.service.api.type "ClusterIP" }}
       nodePort: null
       {{- end }}
-  selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
+    {{- if .Values.proxy.service.api.extraPorts }}
+    {{- include "common.tplvalues.render" (dict "value" .Values.proxy.service.api.extraPorts "context" $) | nindent 4 }}
+    {{- end }}
+  {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list .Values.proxy.podLabels .Values.commonLabels ) "context" . ) }}
+  selector: {{- include "common.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 4 }}
     app.kubernetes.io/component: proxy

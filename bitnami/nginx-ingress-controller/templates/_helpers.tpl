@@ -1,3 +1,8 @@
+{{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{/* vim: set filetype=mustache: */}}
 
 {{/*
@@ -71,5 +76,14 @@ Return the appropriate apiGroup for PodSecurityPolicy.
 {{- print "policy" -}}
 {{- else -}}
 {{- print "extensions" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Require extensions API group based on Kubernetes version
+*/}}
+{{- define "nginx-ingress-controller.role.extensions.apiGroup" -}}
+{{- if semverCompare "<1.16-0" .Capabilities.KubeVersion.GitVersion -}}
+{{- print "- extensions" -}}
 {{- end -}}
 {{- end -}}

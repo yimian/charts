@@ -1,4 +1,9 @@
 {{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
+{{/*
 Return the proper OAuth2 Proxy image name
 */}}
 {{- define "oauth2-proxy.image" -}}
@@ -9,7 +14,7 @@ Return the proper OAuth2 Proxy image name
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "oauth2-proxy.imagePullSecrets" -}}
-{{- include "common.images.pullSecrets" (dict "images" (list .Values.image) "global" .Values.global) -}}
+{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
 {{- end -}}
 
 {{/*
@@ -24,7 +29,7 @@ Create the name of the service account to use
 {{- end -}}
 
 {{- define "oauth2-proxy.redis.fullname" -}}
-{{- printf "%s-redis" .Release.Name -}}
+{{- printf "%s-redis" (default .Release.Name .Values.redis.nameOverride) -}}
 {{- end -}}
 
 {{- define "oauth2-proxy.configmapName" -}}
@@ -63,7 +68,7 @@ Create the name of the service account to use
 {{- if .Values.configuration.google.existingSecret -}}
 {{- .Values.configuration.google.existingSecret -}}
 {{- else -}}
-{{- include "common.names.fullname" . -}}
+{{- printf "%s-google" (include "common.names.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -105,11 +110,13 @@ Get the password secret.
 {{- end -}}
 
 {{/*
-Get the password key to be retrieved from Redis&trade; secret.
+Get the password key to be retrieved from Redis&reg; secret.
 */}}
 {{- define "oauth2-proxy.redis.secretPasswordKey" -}}
-{{- if and .Values.redis.auth.existingSecret .Values.redis.auth.existingSecretPasswordKey -}}
+{{- if and .Values.redis.enabled .Values.redis.auth.existingSecret .Values.redis.auth.existingSecretPasswordKey -}}
 {{- printf "%s" .Values.redis.auth.existingSecretPasswordKey -}}
+{{- else if and (not .Values.redis.enabled) .Values.externalRedis.existingSecret .Values.externalRedis.existingSecretPasswordKey -}}
+{{- printf "%s" .Values.externalRedis.existingSecretPasswordKey -}}
 {{- else -}}
 {{- printf "redis-password" -}}
 {{- end -}}
@@ -129,7 +136,7 @@ Compile all warnings into a single message.
 {{- end -}}
 {{- end -}}
 
-{{/* Validate values of Wavefront - clusterName */}}
+{{/* Validate values of Redis - clusterName */}}
 {{- define "oauth2-proxy.validateValues.redis" -}}
 {{- if and .Values.redis.enabled .Values.externalRedis.host -}}
 oauth2-proxy: BothRedis

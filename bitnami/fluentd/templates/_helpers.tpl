@@ -1,17 +1,34 @@
+{{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{/* vim: set filetype=mustache: */}}
 
 {{/*
 Return the proper Fluentd image name
 */}}
-{{- define "fluentd.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+{{- define "fluentd.forwarder.image" -}}
+{{- $registryName := default .Values.image.registry .Values.forwarder.image.registry -}}
+{{- $repositoryName := default .Values.image.repository .Values.forwarder.image.repository -}}
+{{- $tag := default .Values.image.tag .Values.forwarder.image.tag -}}
+{{- $imageRoot := dict "registry" $registryName "repository" $repositoryName "tag" $tag -}}
+{{ include "common.images.image" (dict "imageRoot" $imageRoot "global" .Values.global) }}
+{{- end -}}
+
+{{- define "fluentd.aggregator.image" -}}
+{{- $registryName := default .Values.image.registry .Values.aggregator.image.registry -}}
+{{- $repositoryName := default .Values.image.repository .Values.aggregator.image.repository -}}
+{{- $tag := default .Values.image.tag .Values.aggregator.image.tag -}}
+{{- $imageRoot := dict "registry" $registryName "repository" $repositoryName "tag" $tag -}}
+{{ include "common.images.image" (dict "imageRoot" $imageRoot "global" .Values.global) }}
 {{- end -}}
 
 {{/*
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "fluentd.imagePullSecrets" -}}
-{{- include "common.images.pullSecrets" (dict "images" (list .Values.image) "global" .Values.global) -}}
+{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
 {{- end -}}
 
 {{/*
@@ -19,7 +36,7 @@ Create the name of the forwarder service account to use
 */}}
 {{- define "fluentd.forwarder.serviceAccountName" -}}
 {{- if .Values.forwarder.serviceAccount.create -}}
-    {{ default (printf "%s-forwarder" (include "common.names.fullname" .)) .Values.forwarder.serviceAccount.name }}
+    {{ default (printf "%s-forwarder" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" ) .Values.forwarder.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.forwarder.serviceAccount.name }}
 {{- end -}}
@@ -30,7 +47,7 @@ Create the name of the aggregator service account to use
 */}}
 {{- define "fluentd.aggregator.serviceAccountName" -}}
 {{- if .Values.aggregator.serviceAccount.create -}}
-    {{ default (printf "%s-aggregator" (include "common.names.fullname" .)) .Values.aggregator.serviceAccount.name }}
+    {{ default (printf "%s-aggregator" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" ) .Values.aggregator.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.aggregator.serviceAccount.name }}
 {{- end -}}
@@ -52,7 +69,6 @@ Validate data
 {{- $messages := append $messages (include "fluentd.validateValues.deployment" .) -}}
 {{- $messages := append $messages (include "fluentd.validateValues.ingress" .) -}}
 {{- $messages := append $messages (include "fluentd.validateValues.rbac" .) -}}
-{{- $messages := append $messages (include "fluentd.validateValues.serviceAccount" .) -}}
 {{- $messages := append $messages (include "fluentd.validateValues.tls" .) -}}
 {{- $messages := without $messages "" -}}
 {{- $message := join "\n" $messages -}}
@@ -72,7 +88,7 @@ fluentd:
 
 {{/* Validate values of Fluentd - if the aggregator index is enabled there must be a port named http in the service */}}
 {{- define "fluentd.validateValues.ingress" -}}
-{{- if and .Values.aggregator.enabled .Values.aggregator.ingress.enabled (not .Values.aggregator.service.ports.http)}}
+{{- if and .Values.aggregator.enabled .Values.aggregator.ingress.enabled (not .Values.aggregator.service.ports.http) }}
 fluentd:
     You have enabled the Ingress for the aggregator. The aggregator service needs to have a port named http for the Ingress to work.
     Please, define it in your `values.yaml` file. For example:
@@ -92,11 +108,6 @@ fluentd:
 {{/* Validate values of Fluentd - must create serviceAccount to create enable RBAC */}}
 {{- define "fluentd.validateValues.rbac" -}}
 {{- $pspAvailable := (semverCompare "<1.25-0" (include "common.capabilities.kubeVersion" .)) -}}
-{{- if not (typeIs "<nil>" .Values.rbac.create) -}}
-fluentd: rbac.create
-    Top-level rbac configuration has been removed, as it only applied to the forwarder.
-    Please migrate to forwarder.rbac.create
-{{- end -}}
 {{- if and .Values.forwarder.rbac.create (not .Values.forwarder.serviceAccount.create) }}
 fluentd: forwarder.rbac.create
     A ServiceAccount is required ("forwarder.rbac.create=true" is set)
@@ -107,32 +118,13 @@ fluentd: forwarder.rbac.pspEnabled
     Enabling PSP requires RBAC to be created ("forwarder.rbac.create=true" is set)
     Please enable RBAC, or disable creation of PSP (--set forwarder.rbac.create=true) or (--set forwarder.rbac.pspEnabled=false)
 {{- end -}}
-{{- if and $pspAvailable .Values.forwarder.rbac.pspEnabled (not .Values.forwarder.securityContext.enabled) }}
+{{- if and $pspAvailable .Values.forwarder.rbac.pspEnabled (not .Values.forwarder.podSecurityContext.enabled) }}
 fluentd: forwarder.rbac.pspEnabled
-    Enabling PSP requires enabling forwarder pod security context ("forwarder.securityContext.enabled=true")
+    Enabling PSP requires enabling forwarder pod security context ("forwarder.podSecurityContext.enabled=true")
 {{- end -}}
 {{- if and $pspAvailable .Values.forwarder.rbac.pspEnabled (not .Values.forwarder.containerSecurityContext.enabled) }}
 fluentd: forwarder.rbac.pspEnabled
     Enabling PSP requires enabling forwarder container security context ("forwarder.containerSecurityContext.enabled=true")
-{{- end -}}
-{{- end -}}
-
-{{/* Validate values of Fluentd - prefer per component serviceAccounts to top-level definition */}}
-{{- define "fluentd.validateValues.serviceAccount" -}}
-{{- if not (typeIs "<nil>" .Values.serviceAccount.create) -}}
-fluentd: serviceAccount.create:
-    Top-level serviceAccount configuration has been removed, as it only applied to the forwarder.
-    Please migrate to forwarder.serviceAccount.create
-{{- end -}}
-{{- if .Values.serviceAccount.name }}
-fluentd: serviceAccount.name
-    Top-level serviceAccount configuration has been removed, as it only applied to the forwarder.
-    Please migrate to forwarder.serviceAccount.name
-{{- end -}}
-{{- if .Values.serviceAccount.annotations }}
-fluentd: serviceAccount.annotations
-    Top-level serviceAccount configuration has been removed, as it only applied to the forwarder.
-    Please migrate to forwarder.serviceAccount.annotations
 {{- end -}}
 {{- end -}}
 
@@ -153,7 +145,7 @@ Get the forwarder configmap name.
 {{- if .Values.forwarder.configMap -}}
     {{- printf "%s" (tpl .Values.forwarder.configMap $) -}}
 {{- else -}}
-    {{- printf "%s-forwarder-cm" (include "common.names.fullname" . ) -}}
+    {{- printf "%s-forwarder-cm" (include "common.names.fullname" . ) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -164,7 +156,7 @@ Get the aggregator configmap name.
 {{- if .Values.aggregator.configMap -}}
     {{- printf "%s" (tpl .Values.aggregator.configMap $) -}}
 {{- else -}}
-    {{- printf "%s-aggregator-cm" (include "common.names.fullname" . ) -}}
+    {{- printf "%s-aggregator-cm" (include "common.names.fullname" . ) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -175,7 +167,7 @@ Get the certificates secret name.
 {{- if .Values.tls.forwarder.existingSecret -}}
     {{- printf "%s" (tpl .Values.tls.forwarder.existingSecret $) -}}
 {{- else -}}
-    {{- printf "%s-fwd-crt" (include "common.names.fullname" . ) -}}
+    {{- printf "%s-fwd-crt" (include "common.names.fullname" . ) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -186,7 +178,7 @@ Get the certificates secret name.
 {{- if .Values.tls.aggregator.existingSecret -}}
     {{- printf "%s" (tpl .Values.tls.aggregator.existingSecret $) -}}
 {{- else -}}
-    {{- printf "%s-agg-crt" (include "common.names.fullname" . ) -}}
+    {{- printf "%s-agg-crt" (include "common.names.fullname" . ) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
 
@@ -197,4 +189,46 @@ Return true if a TLS secret object should be created
 {{- if and .Values.tls.enabled .Values.tls.autoGenerated (and (or (not .Values.tls.forwarder.existingSecret) (not .Values.forwarder.enabled)) (or (not .Values.aggregator.enabled) (not .Values.tls.aggregator.existingSecret))) }}
     {{- true -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Get the initialization forwarder scripts volume name.
+*/}}
+{{- define "fluentd.forwarder.initScripts" -}}
+{{- printf "%s-forwarder-init-scripts" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Get the initialization aggregator scripts volume name.
+*/}}
+{{- define "fluentd.aggregator.initScripts" -}}
+{{- printf "%s-aggregator-init-scripts" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Get the initialization forwarder scripts ConfigMap name.
+*/}}
+{{- define "fluentd.forwarder.initScriptsCM" -}}
+{{- printf "%s" .Values.forwarder.initScriptsCM -}}
+{{- end -}}
+
+{{/*
+Get the initialization aggregator scripts ConfigMap name.
+*/}}
+{{- define "fluentd.aggregator.initScriptsCM" -}}
+{{- printf "%s" .Values.aggregator.initScriptsCM -}}
+{{- end -}}
+
+{{/*
+Get the initialization forwarder scripts Secret name.
+*/}}
+{{- define "fluentd.forwarder.initScriptsSecret" -}}
+{{- printf "%s" .Values.forwarder.initScriptsSecret -}}
+{{- end -}}
+
+{{/*
+Get the initialization aggregator scripts Secret name.
+*/}}
+{{- define "fluentd.aggregator.initScriptsSecret" -}}
+{{- printf "%s" .Values.aggregator.initScriptsSecret -}}
 {{- end -}}

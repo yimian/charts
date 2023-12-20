@@ -1,3 +1,6 @@
+# Copyright VMware, Inc.
+# SPDX-License-Identifier: APACHE-2.0
+
 ## @section Global parameters
 ## Global Docker image parameters
 ## Please, note that this will override the image parameters, including dependencies, configured to use the global value
@@ -27,12 +30,18 @@ nameOverride: ""
 ## @param fullnameOverride String to fully override ebjca.fullname template
 ##
 fullnameOverride: ""
+## @param namespaceOverride String to fully override common.names.namespace
+##
+namespaceOverride: ""
 ## @param commonLabels Add labels to all the deployed resources
 ##
 commonLabels: {}
 ## @param commonAnnotations Annotations to be added to all deployed resources
 ##
 commonAnnotations: {}
+## @param extraDeploy Array of extra objects to deploy with the release
+##
+extraDeploy: []
 
 ## Enable diagnostic mode in the deployment
 ##
@@ -53,9 +62,10 @@ diagnosticMode:
 
 ## Bitnami EJBCA image version
 ## ref: https://hub.docker.com/r/bitnami/ejbca/tags/
-## @param image.registry EJBCA image registry
-## @param image.repository EJBCA image name
-## @param image.tag EJBCA image tag
+## @param image.registry [default: REGISTRY_NAME] EJBCA image registry
+## @param image.repository [default: REPOSITORY_NAME/ejbca] EJBCA image name
+## @skip image.tag EJBCA image tag
+## @param image.digest EJBCA image image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
 ## @param image.pullPolicy EJBCA image pull policy
 ## @param image.pullSecrets Specify docker-registry secret names as an array
 ## @param image.debug Enable image debug mode
@@ -63,10 +73,11 @@ diagnosticMode:
 image:
   registry: docker.io
   repository: bitnami/ejbca
-  tag: 7.4.3-2-debian-10-r28
+  tag: 8.2.0-debian-11-r0
+  digest: ""
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
   ## Optionally specify an array of imagePullSecrets.
@@ -159,13 +170,25 @@ nodeSelector: {}
 ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 ##
 tolerations: []
+## @param updateStrategy.type EJBCA deployment strategy type.
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+## e.g:
+## updateStrategy:
+##  type: RollingUpdate
+##  rollingUpdate:
+##    maxSurge: 25%
+##    maxUnavailable: 25%
+##
+updateStrategy:
+  type: RollingUpdate
 ## Enable persistence using Persistent Volume Claims
-## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
 ## @param persistence.enabled Whether to enable persistence based on Persistent Volume Claims
-## @param persistence.accessMode PVC Access Mode (RWO, ROX, RWX)
+## @param persistence.accessModes [array] Persistent Volume access modes
 ## @param persistence.size Size of the PVC to request
 ## @param persistence.storageClass PVC Storage Class
 ## @param persistence.existingClaim Name of an existing PVC to reuse
+## @param persistence.annotations Persistent Volume Claim annotations
 ##
 persistence:
   enabled: true
@@ -182,8 +205,10 @@ persistence:
   ## existingClaim: your-claim
   ##
   existingClaim: ""
-  accessMode: ReadWriteOnce
+  accessModes:
+    - ReadWriteOnce
   size: 2Gi
+  annotations: {}
 ## @param sidecars Attach additional sidecar containers to the pod
 ## Example:
 ## sidecars:
@@ -208,8 +233,21 @@ initContainers: []
 ## https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases/
 ##
 hostAliases: []
+## @param priorityClassName EJBCA pods' priorityClassName
+## ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+##
+priorityClassName: ""
+## @param schedulerName Name of the k8s scheduler (other than default)
+## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+##
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+## https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+## The value is evaluated as a template
+##
+topologySpreadConstraints: []
 ## @param ejbcaAdminUsername EJBCA administrator username
-## ref: https://github.com/bitnami/bitnami-docker-ejbca#environment-variables
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/ejbca#environment-variables
 ##
 ejbcaAdminUsername: bitnami
 ## @param ejbcaAdminPassword Password for the administrator account
@@ -242,35 +280,86 @@ ejbcaCA:
 ## "keystore-password" --> Password used to encrypt keystore.jks
 ##
 ejbcaKeystoreExistingSecret: ""
-## @param extraEnv Additional container environment variables
-## extraEnv:
-##   - name:
-##     value:
+## @param extraEnvVars Array with extra environment variables to add to EJBCA nodes
+## e.g:
+## extraEnvVars:
+##   - name: FOO
+##     value: "bar"
 ##
-extraEnv: []
+extraEnvVars: []
+## @param extraEnvVarsCM Name of existing ConfigMap containing extra env vars for EJBCA nodes
+##
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Name of existing Secret containing extra env vars for EJBCA nodes
+##
+extraEnvVarsSecret: ""
 ## @param command Custom command to override image cmd
 ##
 command: []
 ## @param args Custom args for the custom command
 ##
 args: []
+## @param lifecycleHooks for the EJBCA container(s) to automate configuration before or after startup
+##
+lifecycleHooks: {}
 ## EJBCA containers' resource requests and limits
 ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
-## @param resources.limits The resources limits for the container
-## @param resources.requests [object] The requested resources for the container
+## @param resources.requests [object] The requested resources for the init container
+## @param resources.limits The resources limits for the init container
+## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+## We usually recommend not to specify default resources and to leave this as a conscious
+## choice for the user. This also increases chances charts run on environments with little
+## resources, such as Minikube. If you do want to specify resources, uncomment the following
+## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+## @param resources.limits The resources limits for Ejbca containers
+## @param resources.requests The requested resources for Ejbca containers
 ##
 resources:
+  ## Example:
+  ## limits:
+  ##    cpu: 500m
+  ##    memory: 1Gi
   limits: {}
-  requests:
-    memory: 512Mi
-    cpu: 300m
+  ## Examples:
+  ## requests:
+  ##    cpu: 250m
+  ##    memory: 256Mi
+  requests: {}
 ## K8s Security Context for EJBCA container
 ## @param containerSecurityContext.enabled Enabled EJBCA containers' Security Context
 ## @param containerSecurityContext.runAsUser Set EJBCA containers' Security Context runAsUser
+## @param containerSecurityContext.runAsNonRoot Set Controller container's Security Context runAsNonRoot
+## @param containerSecurityContext.privileged Set primary container's Security Context privileged
+## @param containerSecurityContext.allowPrivilegeEscalation Set primary container's Security Context allowPrivilegeEscalation
+## @param containerSecurityContext.capabilities.drop List of capabilities to be dropped
+## @param containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
 ##
 containerSecurityContext:
   enabled: true
   runAsUser: 1001
+  runAsNonRoot: true
+  privileged: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+## EJBCA pod extra options for startup probe
+## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+## @param startupProbe.enabled Enable/disable startupProbe
+## @param startupProbe.initialDelaySeconds Delay before startup probe is initiated
+## @param startupProbe.periodSeconds How often to perform the probe
+## @param startupProbe.timeoutSeconds When the probe times out
+## @param startupProbe.failureThreshold Minimum consecutive failures for the probe
+## @param startupProbe.successThreshold Minimum consecutive successes for the probe
+##
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 500
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
 ## EJBCA pod extra options for liveness probe
 ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
 ## @param livenessProbe.enabled Enable/disable livenessProbe
@@ -303,6 +392,9 @@ readinessProbe:
   timeoutSeconds: 5
   failureThreshold: 6
   successThreshold: 1
+## @param customStartupProbe Custom startup probe to execute (when the main one is disabled)
+##
+customStartupProbe: {}
 ## @param customLivenessProbe Custom liveness probe to execute (when the main one is disabled)
 ##
 customLivenessProbe: {}
@@ -323,13 +415,13 @@ service:
   ## @param service.type Kubernetes Service type
   ##
   type: LoadBalancer
-  ## @param service.port Service HTTP port
+  ## @param service.ports.http Service HTTP port
+  ## @param service.ports.https Service HTTPS port
   ##
-  port: 8080
-  ## @param service.httpsPort Service HTTPS port
-  ##
-  httpsPort: 8443
-  ## @param service.advertisedHttpsPort Port used for the administration
+  ports:
+    http: 8080
+    https: 8443
+  ## @param service.advertisedHttpsPort Port number used in the rendered URLs for the admistrator login.
   ##
   advertisedHttpsPort: 443
   ## @param service.httpsTargetPort Service Target HTTPS port
@@ -345,8 +437,17 @@ service:
   nodePorts:
     http: ""
     https: ""
+  ## @param service.clusterIP EJBCA service Cluster IP
+  ## e.g.:
+  ## clusterIP: None
+  ##
+  clusterIP: ""
+  ## @param service.loadBalancerIP EJBCA service Load Balancer IP
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+  ##
+  loadBalancerIP: ""
   ## @param service.externalTrafficPolicy Enable client source IP preservation
-  ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
   ##
   externalTrafficPolicy: Cluster
   ## @param service.annotations Service annotations
@@ -359,12 +460,22 @@ service:
   ## @param service.extraPorts Extra ports to expose in the service (normally used with the `sidecar` value)
   ##
   extraPorts: []
+  ## @param service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+  ## If "ClientIP", consecutive client requests will be directed to the same Pod
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+  ##
+  sessionAffinity: None
+  ## @param service.sessionAffinityConfig Additional settings for the sessionAffinity
+  ## sessionAffinityConfig:
+  ##   clientIP:
+  ##     timeoutSeconds: 300
+  sessionAffinityConfig: {}
 
 ## @section Ingress parameters
 
 ## Configure the ingress resource that allows you to access the
 ## EJBCA installation. Set up the URL
-## ref: http://kubernetes.io/docs/user-guide/ingress/
+## ref: https://kubernetes.io/docs/user-guide/ingress/
 ##
 ingress:
   ## @param ingress.enabled Enable ingress controller resource
@@ -440,11 +551,30 @@ ingress:
   ##   certificate:
   ##
   secrets: []
+  ## @param ingress.ingressClassName IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)
+  ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster .
+  ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+  ##
+  ingressClassName: ""
+  ## @param ingress.extraRules Additional rules to be covered with this ingress record
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-rules
+  ## e.g:
+  ## extraRules:
+  ## - host: example.local
+  ##     http:
+  ##       path: /
+  ##       backend:
+  ##         service:
+  ##           name: example-svc
+  ##           port:
+  ##             name: http
+  ##
+  extraRules: []
 
 ## @section Database parameters
 
 ## MariaDB chart configuration
-## https://github.com/bitnami/charts/blob/master/bitnami/mariadb/values.yaml
+## https://github.com/bitnami/charts/blob/main/bitnami/mariadb/values.yaml
 ##
 mariadb:
   ## @param mariadb.enabled Whether to deploy a mariadb server to satisfy the applications database requirements.
@@ -461,19 +591,19 @@ mariadb:
   ## @param mariadb.auth.password Password for the database
   ##
   auth:
-    ## ref: https://github.com/bitnami/bitnami-docker-mariadb#setting-the-root-password-on-first-run
+    ## ref: https://github.com/bitnami/containers/tree/main/bitnami/mariadb#setting-the-root-password-on-first-run
     ##
     rootPassword: ""
-    ## ref: https://github.com/bitnami/bitnami-docker-mariadb/blob/master/README.md#creating-a-database-on-first-run
+    ## ref: https://github.com/bitnami/containers/blob/main/bitnami/mariadb/README.md#creating-a-database-on-first-run
     ##
     database: bitnami_ejbca
-    ## ref: https://github.com/bitnami/bitnami-docker-mariadb/blob/master/README.md#creating-a-database-user-on-first-run
+    ## ref: https://github.com/bitnami/containers/blob/main/bitnami/mariadb/README.md#creating-a-database-user-on-first-run
     ##
     username: bn_ejbca
     password: ""
   primary:
     ## Enable persistence using Persistent Volume Claims
-    ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
     ## @param mariadb.primary.persistence.enabled Enable database persistence using PVC
     ## @param mariadb.primary.persistence.storageClass MariaDB primary persistent volume storage Class
     ## @param mariadb.primary.persistence.accessMode Persistent Volume access mode
@@ -511,3 +641,80 @@ externalDatabase:
   existingSecret: ""
   database: bitnami_ejbca
   port: 3306
+
+## @section NetworkPolicy parameters
+
+## Add networkpolicies
+##
+networkPolicy:
+  ## @param networkPolicy.enabled Enable network policies
+  ## If ingress.enabled or metrics.enabled are true, configure networkPolicy.ingress and networkPolicy.metrics selectors respectively to allow communication
+  ##
+  enabled: false
+  ## @param networkPolicy.ingress.enabled Enable network policy for Ingress Proxies
+  ## @param networkPolicy.ingress.namespaceSelector Ingress Proxy namespace selector labels. These labels will be used to identify the Ingress Proxy's namespace.
+  ## @param networkPolicy.ingress.podSelector Ingress Proxy pods selector labels. These labels will be used to identify the Ingress Proxy pods.
+  ##
+  ingress:
+    enabled: false
+    ## e.g:
+    ## podSelector:
+    ##   label: ingress
+    ##
+    podSelector: {}
+    ## e.g:
+    ## namespaceSelector:
+    ##   label: ingress
+    ##
+    namespaceSelector: {}
+  ## @param networkPolicy.ingressRules.backendOnlyAccessibleByFrontend Enable ingress rule that makes the backend (mariadb) only accessible by EJBCA's pods.
+  ## @param networkPolicy.ingressRules.customBackendSelector Backend selector labels. These labels will be used to identify the backend pods.
+  ## @param networkPolicy.ingressRules.accessOnlyFrom.enabled Enable ingress rule that makes EJBCA only accessible from a particular origin
+  ## @param networkPolicy.ingressRules.accessOnlyFrom.namespaceSelector Namespace selector label that is allowed to access EJBCA. This label will be used to identified the allowed namespace(s).
+  ## @param networkPolicy.ingressRules.accessOnlyFrom.podSelector Pods selector label that is allowed to access EJBCA. This label will be used to identified the allowed pod(s).
+  ## @param networkPolicy.ingressRules.customRules Custom network policy ingress rule
+  ##
+  ingressRules:
+    ## mariadb backend only can be accessed from EJBCA
+    ##
+    backendOnlyAccessibleByFrontend: false
+    customBackendSelector: {}
+    ## Allow only from the indicated:
+    ##
+    accessOnlyFrom:
+      enabled: false
+      ## e.g:
+      ## namespaceSelector:
+      ##   label: ingress
+      ##
+      namespaceSelector: {}
+      ## e.g:
+      ## podSelector:
+      ##   label: access
+      ##
+      podSelector: {}
+    ## custom ingress rules
+    ## e.g:
+    ## customRules:
+    ##   - from:
+    ##       - namespaceSelector:
+    ##           matchLabels:
+    ##             label: example
+    ##
+    customRules: {}
+  ## @param networkPolicy.egressRules.denyConnectionsToExternal Enable egress rule that denies outgoing traffic outside the cluster, except for DNS (port 53).
+  ## @param networkPolicy.egressRules.customRules Custom network policy rule
+  ##
+  egressRules:
+    ## Deny connections to external. This is not compatible with an external database.
+    ##
+    denyConnectionsToExternal: false
+    ## Additional custom egress rules
+    ## e.g:
+    ## customRules:
+    ##   - to:
+    ##       - namespaceSelector:
+    ##           matchLabels:
+    ##             label: example
+    ##
+    customRules: {}

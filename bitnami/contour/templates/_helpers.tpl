@@ -1,3 +1,8 @@
+{{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{/* vim: set filetype=mustache: */}}
 
 {{/*
@@ -103,5 +108,15 @@ contour: envoy.kind
     {{ default "contour" $ingressClass.name }}
 {{- else -}}
     contour
+{{- end -}}
+{{- end -}}
+
+{{/* Whether the name of the ingress class is defined or not */}}
+{{- define "contour.isIngressClassNameDefined" -}}
+{{- $ingressClass := .Values.contour.ingressClass -}}
+{{- if kindIs "string" $ingressClass -}}
+    true
+{{- else if and (kindIs "map" $ingressClass) ($ingressClass.name) -}}
+    true
 {{- end -}}
 {{- end -}}

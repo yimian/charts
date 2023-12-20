@@ -1,3 +1,6 @@
+# Copyright VMware, Inc.
+# SPDX-License-Identifier: APACHE-2.0
+
 ## @section Global parameters
 ## Global Docker image parameters
 ## Please, note that this will override the image parameters, including dependencies, configured to use the global value
@@ -27,6 +30,9 @@ nameOverride: ""
 ## @param fullnameOverride String to fully override drupal.fullname template
 ##
 fullnameOverride: ""
+## @param namespaceOverride String to fully override common.names.namespace
+##
+namespaceOverride: ""
 ## @param commonAnnotations Common annotations to add to all Drupal resources (sub-charts are not considered). Evaluated as a template
 ##
 commonAnnotations: {}
@@ -42,9 +48,10 @@ extraDeploy: []
 
 ## Bitnami Drupal image version
 ## ref: https://hub.docker.com/r/bitnami/drupal/tags/
-## @param image.registry Drupal image registry
-## @param image.repository Drupal Image name
-## @param image.tag Drupal Image tag
+## @param image.registry [default: REGISTRY_NAME] Drupal image registry
+## @param image.repository [default: REPOSITORY_NAME/drupal] Drupal Image name
+## @skip image.tag Drupal Image tag
+## @param image.digest Drupal image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
 ## @param image.pullPolicy Drupal image pull policy
 ## @param image.pullSecrets Specify docker-registry secret names as an array
 ## @param image.debug Specify if debug logs should be enabled
@@ -52,10 +59,11 @@ extraDeploy: []
 image:
   registry: docker.io
   repository: bitnami/drupal
-  tag: 9.2.7-debian-10-r19
+  tag: 10.2.0-debian-11-r0
+  digest: ""
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
   ## Optionally specify an array of imagePullSecrets.
@@ -73,28 +81,28 @@ image:
 ##
 replicaCount: 1
 ## @param drupalProfile Drupal installation profile
-## ref: https://github.com/bitnami/bitnami-docker-drupal#configuration
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal#configuration
 ##
 drupalProfile: standard
 ## @param drupalSkipInstall Skip Drupal installation wizard. Useful for migrations and restoring from SQL dump
-## ref: https://github.com/bitnami/bitnami-docker-drupal#configuration
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal#configuration
 ##
 drupalSkipInstall: false
 ## @param drupalUsername User of the application
-## ref: https://github.com/bitnami/bitnami-docker-drupal#configuration
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal#configuration
 ##
 drupalUsername: user
 ## @param drupalPassword Application password
 ## Defaults to a random 10-character alphanumeric string if not set
-## ref: https://github.com/bitnami/bitnami-docker-drupal#configuration
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal#configuration
 ##
 drupalPassword: ""
 ## @param drupalEmail Admin email
-## ref: https://github.com/bitnami/bitnami-docker-drupal#configuration
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal#configuration
 ##
 drupalEmail: user@example.com
 ## @param allowEmptyPassword Allow DB blank passwords
-## ref: https://github.com/bitnami/bitnami-docker-drupal#environment-variables
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal#environment-variables
 ##
 allowEmptyPassword: true
 ## @param command Override default container command (useful when using custom images)
@@ -110,6 +118,18 @@ args: []
 ##
 updateStrategy:
   type: RollingUpdate
+## @param priorityClassName Drupal pods' priorityClassName
+##
+priorityClassName: ""
+## @param schedulerName Name of the k8s scheduler (other than default)
+## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+##
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+## https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+## The value is evaluated as a template
+##
+topologySpreadConstraints: []
 ## @param hostAliases [array] Add deployment host aliases
 ## https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases/
 ##
@@ -147,11 +167,24 @@ sidecars: []
 ## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 ##
 tolerations: []
+serviceAccount:
+  ## @param serviceAccount.create Specifies whether a service account should be created
+  ##
+  create: true
+  ## @param serviceAccount.name The name of the service account to use. If not set and create is true, a name is generated using the fullname template
+  ##
+  name: ""
+  ## @param serviceAccount.annotations Add annotations
+  ##
+  annotations: {}
+  ## @param serviceAccount.automountServiceAccountToken Automount API credentials for a service account.
+  ##
+  automountServiceAccountToken: true
 ## @param existingSecret Name of a secret with the application password
 ##
 existingSecret: ""
 ## SMTP mail delivery configuration
-## ref: https://github.com/bitnami/bitnami-docker-drupal/#smtp-configuration
+## ref: https://github.com/bitnami/containers/tree/main/bitnami/drupal/#smtp-configuration
 ## @param smtpHost SMTP host
 ## @param smtpPort SMTP port
 ## @param smtpUser SMTP user
@@ -173,7 +206,7 @@ containerPorts:
 ##
 sessionAffinity: "None"
 ## Enable persistence using Persistent Volume Claims
-## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
 ##
 persistence:
   ## @param persistence.enabled Enable persistence using PVC
@@ -187,11 +220,12 @@ persistence:
   ##   GKE, AWS & OpenStack)
   ##
   storageClass: ""
-  ## @param persistence.accessMode PVC Access Mode for Drupal volume
+  ## @param persistence.accessModes PVC Access Mode for Drupal volume
   ## Requires persistence.enabled: true
   ## If defined, PVC must be created manually before volume will be bound
   ##
-  accessMode: ReadWriteOnce
+  accessModes:
+    - ReadWriteOnce
   ## @param persistence.size PVC Storage Request for Drupal volume
   ##
   size: 8Gi
@@ -206,6 +240,10 @@ persistence:
   ## Default: nil.
   ##
   hostPath: ""
+  ## @param persistence.annotations Persistent Volume Claim annotations
+  ##
+  annotations: {}
+
 ## @param podAffinityPreset Pod affinity preset. Ignored if `affinity` is set. Allowed values: `soft` or `hard`
 ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
 ##
@@ -241,13 +279,26 @@ affinity: {}
 ## ref: https://kubernetes.io/docs/user-guide/node-selection/
 ##
 nodeSelector: {}
-## @param resources [object] CPU/Memory resource requests/limits
-## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+## Drupal container's resource requests and limits
+## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+## We usually recommend not to specify default resources and to leave this as a conscious
+## choice for the user. This also increases chances charts run on environments with little
+## resources, such as Minikube. If you do want to specify resources, uncomment the following
+## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+## @param resources.limits The resources limits for Matomo containers
+## @param resources.requests The requested resources for Matomo containers
 ##
 resources:
-  requests:
-    memory: 512Mi
-    cpu: 300m
+  ## Example:
+  ## limits:
+  ##    cpu: 500m
+  ##    memory: 1Gi
+  limits: {}
+  ## Examples:
+  ## requests:
+  ##    cpu: 250m
+  ##    memory: 256Mi
+  requests: {}
 ## Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## @param podSecurityContext.enabled Enable Drupal pods' Security Context
@@ -258,12 +309,46 @@ podSecurityContext:
   fsGroup: 1001
 ## Configure Container Security Context (only main container)
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
-## @param containerSecurityContext.enabled Enable Drupal containers' Security Context
-## @param containerSecurityContext.runAsUser Drupal containers' Security Context
+## @param containerSecurityContext.enabled Enabled Drupal containers' Security Context
+## @param containerSecurityContext.runAsUser Set Drupal containers' Security Context runAsUser
+## @param containerSecurityContext.runAsNonRoot Set Controller container's Security Context runAsNonRoot
+## @param containerSecurityContext.privileged Set primary container's Security Context privileged
+## @param containerSecurityContext.allowPrivilegeEscalation Set primary container's Security Context allowPrivilegeEscalation
+## @param containerSecurityContext.capabilities.drop List of capabilities to be dropped
+## @param containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
 ##
 containerSecurityContext:
   enabled: true
   runAsUser: 1001
+  runAsNonRoot: true
+  privileged: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+## Configure extra options for startup probe
+## Drupal core exposes /user/login to unauthenticated requests, making it a good
+## default startup and readiness path. However, that may not always be the
+## case. For example, if the image value is overridden to an image containing a
+## module that alters that route, or an image that does not auto-install Drupal.
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+## @param startupProbe.enabled Enable startupProbe
+## @param startupProbe.path Request path for startupProbe
+## @param startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+## @param startupProbe.periodSeconds Period seconds for startupProbe
+## @param startupProbe.timeoutSeconds Timeout seconds for startupProbe
+## @param startupProbe.failureThreshold Failure threshold for startupProbe
+## @param startupProbe.successThreshold Success threshold for startupProbe
+##
+startupProbe:
+  enabled: false
+  path: /user/login
+  initialDelaySeconds: 600
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 5
+  successThreshold: 1
 ## Configure extra options for liveness probe
 ## Drupal core exposes /user/login to unauthenticated requests, making it a good
 ## default liveness and readiness path. However, that may not always be the
@@ -308,6 +393,9 @@ readinessProbe:
   timeoutSeconds: 1
   failureThreshold: 5
   successThreshold: 1
+## @param customStartupProbe Override default startup probe
+##
+customStartupProbe: {}
 ## @param customLivenessProbe Override default liveness probe
 ##
 customLivenessProbe: {}
@@ -334,12 +422,12 @@ service:
   ## @param service.type Kubernetes Service type
   ##
   type: LoadBalancer
-  ## @param service.port Service HTTP port
+  ## @param service.ports.http Service HTTP port
+  ## @param service.ports.https Service HTTPS port
   ##
-  port: 80
-  ## @param service.httpsPort Service HTTPS port
-  ##
-  httpsPort: 443
+  ports:
+    http: 80
+    https: 443
   ## @param service.loadBalancerSourceRanges Restricts access for LoadBalancer (only with `service.type: LoadBalancer`)
   ## e.g:
   ## loadBalancerSourceRanges:
@@ -347,7 +435,7 @@ service:
   ##
   loadBalancerSourceRanges: []
   ## @param service.loadBalancerIP loadBalancerIP for the Drupal Service (optional, cloud specific)
-  ## ref: http://kubernetes.io/docs/user-guide/services/#type-loadbalancer
+  ## ref: https://kubernetes.io/docs/user-guide/services/#type-loadbalancer
   loadBalancerIP: ""
   ## @param service.nodePorts [object] Kubernetes node port
   ## nodePorts:
@@ -358,12 +446,34 @@ service:
     http: ""
     https: ""
   ## @param service.externalTrafficPolicy Enable client source IP preservation
-  ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
   ##
   externalTrafficPolicy: Cluster
+  ## @param service.clusterIP %%MAIN_CONTAINER_NAME%% service Cluster IP
+  ## e.g.:
+  ## clusterIP: None
+  ##
+  clusterIP: ""
+  ## @param service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+  ##
+  extraPorts: []
+  ## @param service.annotations Additional custom annotations for %%MAIN_CONTAINER_NAME%% service
+  ##
+  annotations: {}
+  ## @param service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+  ## If "ClientIP", consecutive client requests will be directed to the same Pod
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+  ##
+  sessionAffinity: None
+  ## @param service.sessionAffinityConfig Additional settings for the sessionAffinity
+  ## sessionAffinityConfig:
+  ##   clientIP:
+  ##     timeoutSeconds: 300
+  ##
+  sessionAffinityConfig: {}
 ## Configure the ingress resource that allows you to access the
 ## Drupal installation. Set up the URL
-## ref: http://kubernetes.io/docs/user-guide/ingress/
+## ref: https://kubernetes.io/docs/user-guide/ingress/
 ##
 ingress:
   ## @param ingress.enabled Enable ingress controller resource
@@ -444,11 +554,25 @@ ingress:
   ##   certificate:
   ##
   secrets: []
+  ## @param ingress.extraRules Additional rules to be covered with this ingress record
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-rules
+  ## e.g:
+  ## extraRules:
+  ## - host: example.local
+  ##     http:
+  ##       path: /
+  ##       backend:
+  ##         service:
+  ##           name: example-svc
+  ##           port:
+  ##             name: http
+  ##
+  extraRules: []
 
 ## @section Database parameters
 
 ## MariaDB chart configuration
-## https://github.com/bitnami/charts/blob/master/bitnami/mariadb/values.yaml
+## https://github.com/bitnami/charts/blob/main/bitnami/mariadb/values.yaml
 ##
 mariadb:
   ## @param mariadb.enabled Whether to deploy a mariadb server to satisfy the applications database requirements
@@ -465,19 +589,19 @@ mariadb:
   ## @param mariadb.auth.password Password for the database
   ##
   auth:
-    ## ref: https://github.com/bitnami/bitnami-docker-mariadb#setting-the-root-password-on-first-run
+    ## ref: https://github.com/bitnami/containers/tree/main/bitnami/mariadb#setting-the-root-password-on-first-run
     ##
     rootPassword: ""
-    ## ref: https://github.com/bitnami/bitnami-docker-mariadb/blob/master/README.md#creating-a-database-on-first-run
+    ## ref: https://github.com/bitnami/containers/blob/main/bitnami/mariadb/README.md#creating-a-database-on-first-run
     ##
     database: bitnami_drupal
-    ## ref: https://github.com/bitnami/bitnami-docker-mariadb/blob/master/README.md#creating-a-database-user-on-first-run
+    ## ref: https://github.com/bitnami/containers/blob/main/bitnami/mariadb/README.md#creating-a-database-user-on-first-run
     ##
     username: bn_drupal
     password: ""
   primary:
     ## Enable persistence using Persistent Volume Claims
-    ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+    ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
     ## @param mariadb.primary.persistence.enabled Enable database persistence using PVC
     ## @param mariadb.primary.persistence.storageClass MariaDB primary persistent volume storage Class
     ## @param mariadb.primary.persistence.accessModes Database Persistent Volume Access Modes
@@ -504,8 +628,9 @@ mariadb:
 ## @param externalDatabase.host Host of the existing database
 ## @param externalDatabase.port Port of the existing database
 ## @param externalDatabase.user Existing username in the external db
-## @param externalDatabase.password Password for the above username
+## @param externalDatabase.password Password for the above username. Ignored if existing secret is provided
 ## @param externalDatabase.database Name of the existing database
+## @param externalDatabase.existingSecret Name of a secret with the database password. (externalDatabase.password will be ignored and picked up from this secret). The secret has to contain the key db-password
 ##
 externalDatabase:
   host: ""
@@ -513,6 +638,7 @@ externalDatabase:
   user: bn_drupal
   password: ""
   database: bitnami_drupal
+  existingSecret: ""
 
 ## @section Volume Permissions parameters
 
@@ -523,16 +649,18 @@ volumePermissions:
   ## @param volumePermissions.enabled Enable init container that changes volume permissions in the data directory (for cases where the default k8s `runAsUser` and `fsUser` values do not work)
   ##
   enabled: false
-  ## @param volumePermissions.image.registry Init container volume-permissions image registry
-  ## @param volumePermissions.image.repository Init container volume-permissions image name
-  ## @param volumePermissions.image.tag Init container volume-permissions image tag
+  ## @param volumePermissions.image.registry [default: REGISTRY_NAME] Init container volume-permissions image registry
+  ## @param volumePermissions.image.repository [default: REPOSITORY_NAME/os-shell] Init container volume-permissions image name
+  ## @skip volumePermissions.image.tag Init container volume-permissions image tag
+  ## @param volumePermissions.image.digest Init container volume-permissions image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
   ## @param volumePermissions.image.pullPolicy Init container volume-permissions image pull policy
   ## @param volumePermissions.image.pullSecrets Specify docker-registry secret names as an array
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
-    tag: 10-debian-10-r234
+    repository: bitnami/os-shell
+    tag: 11-debian-11-r92
+    digest: ""
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
     ## Secrets must be manually created in the namespace.
@@ -543,7 +671,7 @@ volumePermissions:
     ##
     pullSecrets: []
   ## Init containers' resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ## We usually recommend not to specify default resources and to leave this as a conscious
   ## choice for the user. This also increases chances charts run on environments with little
   ## resources, such as Minikube. If you do want to specify resources, uncomment the following
@@ -571,16 +699,18 @@ metrics:
   ## @param metrics.enabled Start a exporter side-car
   ##
   enabled: false
-  ## @param metrics.image.registry Apache exporter image registry
-  ## @param metrics.image.repository Apache exporter image repository
-  ## @param metrics.image.tag Apache exporter image tag
+  ## @param metrics.image.registry [default: REGISTRY_NAME] Apache exporter image registry
+  ## @param metrics.image.repository [default: REPOSITORY_NAME/apache-exporter] Apache exporter image repository
+  ## @skip metrics.image.tag Apache exporter image tag
+  ## @param metrics.image.digest Apache exporter image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
   ## @param metrics.image.pullPolicy Image pull policy
   ## @param metrics.image.pullSecrets Specify docker-registry secret names as an array
   ##
   image:
     registry: docker.io
     repository: bitnami/apache-exporter
-    tag: 0.10.1-debian-10-r36
+    tag: 1.0.3-debian-11-r2
+    digest: ""
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
     ## Secrets must be manually created in the namespace.
@@ -591,7 +721,7 @@ metrics:
     ##
     pullSecrets: []
   ## @param metrics.resources Metrics exporter resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ##
   resources: {}
   ##
@@ -600,6 +730,92 @@ metrics:
   podAnnotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "9117"
+  ## Drupal exporter service parameters
+  ##
+  service:
+    ## @param metrics.service.type Drupal exporter service type
+    ##
+    type: ClusterIP
+    ## @param metrics.service.ports.metrics Drupal exporter service port
+    ##
+    ports:
+      metrics: 9117
+    ## @param metrics.service.externalTrafficPolicy Drupal exporter service external traffic policy
+    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ##
+    externalTrafficPolicy: Cluster
+    ## @param metrics.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param metrics.service.loadBalancerIP Drupal exporter service Load Balancer IP
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
+    ##
+    loadBalancerIP: ""
+    ## @param metrics.service.loadBalancerSourceRanges Drupal exporter service Load Balancer sources
+    ## https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+    ## e.g.
+    ## loadBalancerSourceRanges:
+    ##   - 10.10.10.0/24
+    ##
+    loadBalancerSourceRanges: []
+    ## @param metrics.service.annotations Additional custom annotations for Drupal exporter service
+    ##
+    annotations: {}
+  ## Prometheus Service Monitor
+  ## ref: https://github.com/coreos/prometheus-operator
+  ##      https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+  ##
+  serviceMonitor:
+    ## @param metrics.serviceMonitor.enabled Create ServiceMonitor resource(s) for scraping metrics using PrometheusOperator
+    ##
+    enabled: false
+    ## @param metrics.serviceMonitor.namespace The namespace in which the ServiceMonitor will be created
+    ##
+    namespace: ""
+    ## @param metrics.serviceMonitor.interval The interval at which metrics should be scraped
+    ##
+    interval: 30s
+    ## @param metrics.serviceMonitor.scrapeTimeout The timeout after which the scrape is ended
+    ##
+    scrapeTimeout: ""
+    ## @param metrics.serviceMonitor.relabellings Metrics RelabelConfigs to apply to samples before scraping.
+    ##
+    relabellings: []
+    ## @param metrics.serviceMonitor.metricRelabelings Metrics RelabelConfigs to apply to samples before ingestion.
+    ##
+    metricRelabelings: []
+    ## @param metrics.serviceMonitor.honorLabels Specify honorLabels parameter to add the scrape endpoint
+    ##
+    honorLabels: false
+    ## @param metrics.serviceMonitor.additionalLabels Additional labels that can be used so ServiceMonitor resource(s) can be discovered by Prometheus
+    ##
+    additionalLabels: {}
+  ## Custom PrometheusRule to be defined
+  ## ref: https://github.com/coreos/prometheus-operator#customresourcedefinitions
+  ##
+  prometheusRule:
+    ## @param metrics.prometheusRule.enabled Create a custom prometheusRule Resource for scraping metrics using PrometheusOperator
+    ##
+    enabled: false
+    ## @param metrics.prometheusRule.namespace The namespace in which the prometheusRule will be created
+    ##
+    namespace: ""
+    ## @param metrics.prometheusRule.additionalLabels Additional labels for the prometheusRule
+    ##
+    additionalLabels: {}
+    ## @param metrics.prometheusRule.rules Custom Prometheus rules
+    ## e.g:
+    ## rules:
+    ##   - alert: ApacheDown
+    ##     expr: apache_up{service="{{ template "common.names.fullname" . }}-metrics"} == 0
+    ##     for: 2m
+    ##     labels:
+    ##       severity: error
+    ##     annotations:
+    ##       summary: Drupal instance {{ "{{ $labels.instance }}" }} down
+    ##       description: Drupal instance {{ "{{ $labels.instance }}" }} is down
+    ##
+    rules: []
 
 ## @section Certificate injection parameters
 
@@ -639,19 +855,21 @@ certificates:
   ## @param certificates.extraEnvVarsSecret Secret containing extra env vars (in case of sensitive data)
   ##
   extraEnvVarsSecret: ""
-  ## @param certificates.image.registry Container sidecar registry
-  ## @param certificates.image.repository Container sidecar image
-  ## @param certificates.image.tag Container sidecar image tag
+  ## @param certificates.image.registry [default: REGISTRY_NAME] Container sidecar registry
+  ## @param certificates.image.repository [default: REPOSITORY_NAME/os-shell] Container sidecar image
+  ## @skip certificates.image.tag Container sidecar image tag
+  ## @param certificates.image.digest Container sidecar image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
   ## @param certificates.image.pullPolicy Container sidecar image pull policy
   ## @param certificates.image.pullSecrets Container sidecar image pull secrets
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
-    tag: 10-debian-10-r234
+    repository: bitnami/os-shell
+    tag: 11-debian-11-r92
+    digest: ""
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
     ##
     pullPolicy: IfNotPresent
     ## e.g:
@@ -662,10 +880,11 @@ certificates:
 
 ## @section NetworkPolicy parameters
 
-## Add networkpolcies
+## Add networkpolicies
 ##
 networkPolicy:
   ## @param networkPolicy.enabled Enable network policies
+  ## If ingress.enabled or metrics.enabled are true, configure networkPolicy.ingress and networkPolicy.metrics selectors respectively to allow communication
   ##
   enabled: false
   ## @param networkPolicy.metrics.enabled Enable network policy for metrics (prometheus)
@@ -673,7 +892,7 @@ networkPolicy:
   ## @param networkPolicy.metrics.podSelector [object] Monitoring pod selector labels. These labels will be used to identify the Prometheus pods.
   ##
   metrics:
-    enabled: true
+    enabled: false
     ## e.g:
     ## podSelector:
     ##   label: monitoring
@@ -684,12 +903,12 @@ networkPolicy:
     ##   label: monitoring
     ##
     namespaceSelector: {}
-  ## @param networkPolicy.ingress.enabled Enable network policy for Ingress Proxys
+  ## @param networkPolicy.ingress.enabled Enable network policy for Ingress Proxies
   ## @param networkPolicy.ingress.namespaceSelector [object] Ingress Proxy namespace selector labels. These labels will be used to identify the Ingress Proxy's namespace.
   ## @param networkPolicy.ingress.podSelector [object] Ingress Proxy pods selector labels. These labels will be used to identify the Ingress Proxy pods.
   ##
   ingress:
-    enabled: true
+    enabled: false
     ## e.g:
     ## podSelector:
     ##   label: ingress
@@ -700,7 +919,7 @@ networkPolicy:
     ##   label: ingress
     ##
     namespaceSelector: {}
-  ## @param networkPolicy.ingressRules.backendOnlyAccessibleByFrontend Enable ingress rule that makes the backend (mariadb) only accesible by drupal's pods.
+  ## @param networkPolicy.ingressRules.backendOnlyAccessibleByFrontend Enable ingress rule that makes the backend (mariadb) only accessible by drupal's pods.
   ## @param networkPolicy.ingressRules.customBackendSelector [object] Backend selector labels. These labels will be used to identify the backend pods.
   ## @param networkPolicy.ingressRules.accessOnlyFrom.enabled Enable ingress rule that makes drupal only accessible from a particular origin
   ## @param networkPolicy.ingressRules.accessOnlyFrom.namespaceSelector [object] Namespace selector label that is allowed to access drupal. This label will be used to identified the allowed namespace(s).
@@ -708,7 +927,8 @@ networkPolicy:
   ## @param networkPolicy.ingressRules.customRules [object] Custom network policy ingress rule
   ##
   ingressRules:
-    ## Mysql backend only could be accessed from drupal
+    ## mariadb backend only can be accessed from drupal
+    ##
     backendOnlyAccessibleByFrontend: false
     customBackendSelector: {}
     ## Allow only from the indicated:

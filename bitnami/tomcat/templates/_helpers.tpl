@@ -1,3 +1,8 @@
+{{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{/* vim: set filetype=mustache: */}}
 
 {{/*
@@ -5,6 +10,18 @@ Return the proper Tomcat image name
 */}}
 {{- define "tomcat.image" -}}
 {{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+{{- end -}}
+
+{{/*
+Return the Tomcat ports map
+*/}}
+{{- define "tomcat.ports" -}}
+- port: {{ .Values.containerPorts.http }}
+  protocol: TCP
+{{- range .Values.containerExtraPorts }}
+- port: {{ include "common.tplvalues.render" (dict "value" .containerPort "context" $) }}
+  protocol: TCP
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -49,7 +66,11 @@ Expand the name of the chart.
 Return the proper CATALINA_OPTS value
 */}}
 {{- define "tomcat.catalinaOpts" -}}
-  {{- printf "%s %s" .Values.catalinaOpts .Values.metrics.jmx.catalinaOpts  | trim  -}}
+{{- if .Values.metrics.jmx.enabled -}}
+{{- default "" (cat .Values.catalinaOpts .Values.metrics.jmx.catalinaOpts) | trim  -}}
+{{- else -}}
+{{- default "" .Values.catalinaOpts  | trim -}}
+{{- end -}}
 {{- end -}}
 
 {{/*

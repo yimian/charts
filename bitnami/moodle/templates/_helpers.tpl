@@ -1,4 +1,9 @@
 {{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
+{{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
@@ -53,6 +58,17 @@ Moodle&trade; credential secret name
 */}}
 {{- define "moodle.secretName" -}}
 {{- coalesce .Values.existingSecret (include "common.names.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Return the Database type
+*/}}
+{{- define "moodle.databaseType" -}}
+{{- if .Values.mariadb.enabled }}
+    {{- printf "mariadb" -}}
+{{- else -}}
+    {{- printf "%s" .Values.externalDatabase.type -}}
+{{- end -}}
 {{- end -}}
 
 {{/*

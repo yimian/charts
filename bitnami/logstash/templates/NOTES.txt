@@ -27,9 +27,6 @@ In order to replicate the container startup scripts execute this command:
 Logstash can be accessed through following DNS names from within your cluster:
 
     Logstash: {{ include "common.names.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}
-    {{- if .Values.metrics.enabled }}
-    Logstash Prometheus Metrics: {{ include "common.names.fullname" . }}-metrics.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }} (port {{ .Values.metrics.service.port }})
-    {{- end }}
 
 To access Logstash from outside the cluster execute the following commands:
 
@@ -56,7 +53,7 @@ To access Logstash from outside the cluster execute the following commands:
 {{- else if contains "ClusterIP" .Values.service.type }}
 
     export SERVICE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].port}" services {{ include "common.names.fullname" . }})
-    kubectl port-forward svc/{{ include "common.names.fullname" . }} ${SERVICE_PORT}:${SERVICE_PORT} &
+    kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "common.names.fullname" . }} ${SERVICE_PORT}:${SERVICE_PORT} &
     echo "http://127.0.0.1:${SERVICE_PORT}"
 
 {{- end }}

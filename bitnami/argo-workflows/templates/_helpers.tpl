@@ -1,4 +1,9 @@
 {{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
+{{/*
 Return the proper server image name
 */}}
 {{- define "argo-workflows.server.image" -}}
@@ -20,17 +25,31 @@ Return the proper executor image name
 {{- end -}}
 
 {{/*
-Return the proper service name for Argo Workflows server
+Return the proper resource name for Argo Workflows server
 */}}
 {{- define "argo-workflows.server.fullname" -}}
   {{- printf "%s-server" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end -}}
 
 {{/*
-Return the proper service name for Argo Workflows controller
+Return the proper resource name for Argo Workflows server including the chart's release namespace
+*/}}
+{{- define "argo-workflows.server.fullname.namespace" -}}
+  {{- printf "%s-server" (include "common.names.fullname.namespace" .) | trunc 63 | trimSuffix "-" }}
+{{- end -}}
+
+{{/*
+Return the proper resource name for Argo Workflows controller
 */}}
 {{- define "argo-workflows.controller.fullname" -}}
   {{- printf "%s-controller" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end -}}
+
+{{/*
+Return the proper resource name for Argo Workflows controller including the chart's release namespace
+*/}}
+{{- define "argo-workflows.controller.fullname.namespace" -}}
+  {{- printf "%s-controller" (include "common.names.fullname.namespace" .) | trunc 63 | trimSuffix "-" }}
 {{- end -}}
 
 {{/*
@@ -38,7 +57,6 @@ Create a default fully qualified postgresql name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "argo-workflows.postgresql.fullname" -}}
-{{- $name := default "postgresql" .Values.postgresql.nameOverride -}}
 {{- include "common.names.dependency.fullname" (dict "chartName" "postgresql" "chartValues" .Values.postgresql "context" $) -}}
 {{- end -}}
 
@@ -47,7 +65,6 @@ Create a default fully qualified mysql name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "argo-workflows.mysql.fullname" -}}
-{{- $name := default "mysql" .Values.mysql.nameOverride -}}
 {{- include "common.names.dependency.fullname" (dict "chartName" "mysql" "chartValues" .Values.mysql "context" $) -}}
 {{- end -}}
 
@@ -116,13 +133,21 @@ Return the proper database username
 */}}
 {{- define "argo-workflows.controller.database.username" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- .Values.postgresql.postgresqlUsername -}}
+    {{- if .Values.global.postgresql }}
+        {{- if .Values.global.postgresql.auth }}
+            {{- coalesce .Values.global.postgresql.auth.username .Values.postgresql.auth.username -}}
+        {{- else -}}
+            {{- .Values.postgresql.auth.username -}}
+        {{- end -}}
+    {{- else -}}
+        {{- .Values.postgresql.auth.username -}}
+    {{- end -}}
 {{- end -}}
 {{- if .Values.mysql.enabled -}}
 {{- .Values.mysql.auth.username -}}
 {{- end -}}
 {{- if .Values.externalDatabase.enabled -}}
-{{- .Values.externalDatabase.username -}}
+{{- tpl .Values.externalDatabase.username . -}}
 {{- end -}}
 {{- end -}}
 
@@ -138,7 +163,19 @@ Return the proper database password secret
 */}}
 {{- define "argo-workflows.controller.database.password.secret" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- include "argo-workflows.postgresql.fullname" . -}}
+    {{- if .Values.global.postgresql }}
+        {{- if .Values.global.postgresql.auth }}
+            {{- if .Values.global.postgresql.auth.existingSecret }}
+                {{- tpl .Values.global.postgresql.auth.existingSecret $ -}}
+            {{- else -}}
+                {{- default (include "argo-workflows.postgresql.fullname" .) (tpl .Values.postgresql.auth.existingSecret $) -}}
+            {{- end -}}
+        {{- else -}}
+            {{- default (include "argo-workflows.postgresql.fullname" .) (tpl .Values.postgresql.auth.existingSecret $) -}}
+        {{- end -}}
+    {{- else -}}
+        {{- default (include "argo-workflows.postgresql.fullname" .) (tpl .Values.postgresql.auth.existingSecret $) -}}
+    {{- end -}}
 {{- end -}}
 {{- if .Values.mysql.enabled -}}
 {{- include "argo-workflows.mysql.fullname" . -}}
@@ -157,7 +194,7 @@ Return the proper database password secret key
 */}}
 {{- define "argo-workflows.controller.database.password.secret.key" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- printf "%s" "postgresql-password" -}}
+{{- printf "%s" "postgres-password" -}}
 {{- end -}}
 {{- if .Values.mysql.enabled -}}
 {{- printf "%s" "mysql-password" -}}
@@ -179,7 +216,7 @@ The validate values function checks that both types are not set at the same time
 {{- include "argo-workflows.mysql.fullname" . -}}
 {{- end -}}
 {{- if .Values.externalDatabase.enabled -}}
-{{- .Values.externalDatabase.host -}}
+{{- tpl .Values.externalDatabase.host . -}}
 {{- end -}}
 {{- end -}}
 
@@ -188,13 +225,13 @@ Return the proper database
 */}}
 {{- define "argo-workflows.controller.database" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- .Values.postgresql.postgresqlDatabase -}}
+{{- .Values.postgresql.auth.database -}}
 {{- end -}}
 {{- if .Values.mysql.enabled -}}
 {{- .Values.mysql.auth.database -}}
 {{- end -}}
 {{- if .Values.externalDatabase.enabled -}}
-{{- .Values.externalDatabase.database -}}
+{{- tpl .Values.externalDatabase.database . -}}
 {{- end -}}
 {{- end -}}
 
@@ -203,13 +240,13 @@ Return the proper database port
 */}}
 {{- define "argo-workflows.controller.database.port" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- .Values.postgresql.service.port -}}
+{{- .Values.postgresql.service.ports.postgresql -}}
 {{- end -}}
 {{- if .Values.mysql.enabled -}}
 {{- .Values.mysql.service.port -}}
 {{- end -}}
 {{- if .Values.externalDatabase.enabled -}}
-{{- .Values.externalDatabase.port -}}
+{{- tpl .Values.externalDatabase.port . -}}
 {{- end -}}
 {{- end -}}
 
@@ -225,16 +262,6 @@ Validate database configuration
 {{- end -}}
 {{- if and .Values.externalDatabase.enabled (not .Values.externalDatabase.type) -}}
 {{- printf "Validation error: External database provided without the database type parameter" -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Return true if cert-manager required annotations for TLS signed certificates are set in the Ingress annotations
-Ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
-*/}}
-{{- define "argo-workflows.ingress.certManagerRequest" -}}
-{{ if or (hasKey . "cert-manager.io/cluster-issuer") (hasKey . "cert-manager.io/issuer") }}
-    {{- true -}}
 {{- end -}}
 {{- end -}}
 

@@ -1,8 +1,14 @@
-{{- if and (eq .Values.mode "distributed") (not .Values.gateway.enabled) }}
+{{- /*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
+{{- if (eq .Values.mode "distributed") }}
 {{- $fullname := include "common.names.fullname" . }}
 {{- $headlessService := printf "%s-headless" (include "common.names.fullname" .) | trunc 63 }}
 {{- $releaseNamespace := .Release.Namespace }}
 {{- $clusterDomain := .Values.clusterDomain }}
+{{- $apiPort := toString .Values.containerPorts.api }}
 {{- $replicaCount := int .Values.statefulset.replicaCount }}
 {{- $zoneCount := int .Values.statefulset.zones }}
 {{- $drivesPerNode := int .Values.statefulset.drivesPerNode }}
@@ -11,17 +17,15 @@ apiVersion: {{ include "common.capabilities.statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
   name: {{ $fullname }}
-  namespace: {{ $releaseNamespace  }}
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
-    {{- end }}
+  namespace: {{ $releaseNamespace | quote  }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
   {{- if .Values.commonAnnotations }}
   annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 spec:
+  {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list .Values.podLabels .Values.commonLabels ) "context" . ) }}
   selector:
-    matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
+    matchLabels: {{- include "common.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 6 }}
   serviceName: {{ $headlessService }}
   replicas: {{ mul $zoneCount $replicaCount }}
   podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
@@ -30,10 +34,7 @@ spec:
   {{- end }}
   template:
     metadata:
-      labels: {{- include "common.labels.standard" . | nindent 8 }}
-        {{- if .Values.podLabels }}
-        {{- include "common.tplvalues.render" (dict "value" .Values.podLabels "context" $) | nindent 8 }}
-        {{- end }}
+      labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
       {{- if or .Values.podAnnotations (include "minio.createSecret" .) }}
       annotations:
         {{- if (include "minio.createSecret" .) }}
@@ -53,8 +54,8 @@ spec:
       affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "context" $) | nindent 10 }}
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "customLabels" $podLabels "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "customLabels" $podLabels "context" $) | nindent 10 }}
         nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
       {{- end }}
       {{- if .Values.nodeSelector }}
@@ -74,6 +75,9 @@ spec:
       {{- end }}
       {{- if .Values.podSecurityContext.enabled }}
       securityContext: {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- end }}
       {{- if or .Values.initContainers (and .Values.volumePermissions.enabled .Values.persistence.enabled) }}
       initContainers:
@@ -134,7 +138,7 @@ spec:
                   {{- $endIndex := sub (add $factor $replicaCount) 1 }}
                   {{- $beginIndex := mul $i $replicaCount }}
                   {{- $bucket := ternary (printf "%s-{0...%d}" $mountPath (sub $drivesPerNode 1)) $mountPath (gt $drivesPerNode 1) }}
-                  {{- $clusters = append $clusters (printf "%s-{%d...%d}.%s.%s.svc.%s%s" $fullname $beginIndex $endIndex $headlessService $releaseNamespace $clusterDomain $bucket) }}
+                  {{- $clusters = append $clusters (printf "%s-{%d...%d}.%s.%s.svc.%s:%s%s" $fullname $beginIndex $endIndex $headlessService $releaseNamespace $clusterDomain $apiPort $bucket) }}
               {{- end }}
               value: {{ join "," $clusters | quote }}
             - name: MINIO_SCHEME
@@ -172,7 +176,7 @@ spec:
             - name: MINIO_PROMETHEUS_AUTH_TYPE
               value: {{ .Values.metrics.prometheusAuthType | quote }}
             {{- if .Values.tls.mountPath }}
-            - name: MINIO_CERTSDIR
+            - name: MINIO_CERTS_DIR
               value: {{ .Values.tls.mountPath | quote }}
             - name: MINIO_CONSOLE_PORT_NUMBER
               value: {{ .Values.containerPorts.console | quote }}
@@ -196,7 +200,9 @@ spec:
             - name: minio-console
               containerPort: {{ .Values.containerPorts.console }}
               protocol: TCP
-          {{- if .Values.livenessProbe.enabled }}
+          {{- if .Values.customLivenessProbe }}
+          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customLivenessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
               path: /minio/health/live
@@ -207,10 +213,10 @@ spec:
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
             successThreshold: {{ .Values.livenessProbe.successThreshold }}
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
-          {{- else if .Values.customLivenessProbe }}
-          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customLivenessProbe "context" $) | nindent 12 }}
           {{- end }}
-          {{- if .Values.readinessProbe.enabled }}
+          {{- if .Values.customReadinessProbe }}
+          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customReadinessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.readinessProbe.enabled }}
           readinessProbe:
             tcpSocket:
               port: minio-api
@@ -219,10 +225,10 @@ spec:
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
             successThreshold: {{ .Values.readinessProbe.successThreshold }}
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
-          {{- else if .Values.customReadinessProbe }}
-          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customReadinessProbe "context" $) | nindent 12 }}
           {{- end }}
-          {{- if .Values.startupProbe.enabled }}
+          {{- if .Values.customStartupProbe }}
+          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customStartupProbe "context" $) | nindent 12 }}
+          {{- else if .Values.startupProbe.enabled }}
           startupProbe:
             tcpSocket:
               port: minio-api
@@ -231,8 +237,6 @@ spec:
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
             successThreshold: {{ .Values.startupProbe.successThreshold }}
             failureThreshold: {{ .Values.startupProbe.failureThreshold }}
-          {{- else if .Values.customStartupProbe }}
-          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customStartupProbe "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.resources }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
@@ -299,7 +303,7 @@ spec:
     {{- range $diskId := until $drivesPerNode }}
     - metadata:
         name: data-{{ $diskId }}
-        labels: {{- include "common.labels.matchLabels" $ | nindent 10 }}
+        labels: {{- include "common.labels.matchLabels" ( dict "customLabels" $.Values.commonLabels "context" $ ) | nindent 10 }}
         {{- if $.Values.persistence.annotations }}
         annotations: {{- include "common.tplvalues.render" ( dict "value" $.Values.persistence.annotations "context" $) | nindent 10 }}
         {{- end }}
@@ -316,7 +320,7 @@ spec:
   {{- else }}
     - metadata:
         name: data
-        labels: {{- include "common.labels.matchLabels" . | nindent 10 }}
+        labels: {{- include "common.labels.matchLabels" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 10 }}
         {{- if .Values.persistence.annotations }}
         annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.persistence.annotations "context" $) | nindent 10 }}
         {{- end }}

@@ -1,55 +1,80 @@
-{{- if .Values.featureFlags.kubeappsAPIsServer }}
+{{- /*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{- if .Values.rbac.create -}}
+{{- $versionLabel := dict "app.kubernetes.io/version" ( include "common.images.version" ( dict "imageRoot" .Values.kubeappsapis.image "chart" .Chart ) ) }}
+{{- $labels := include "common.tplvalues.merge" ( dict "values" ( list .Values.commonLabels $versionLabel ) "context" . ) }}
 apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
-  name: "kubeapps:controller:kubeapps-apis-dev-{{ .Release.Namespace }}"
-  namespace: {{ .Release.Namespace | quote }}
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  name: {{ printf "kubeapps:%s:kubeappsapis-ns-discovery" .Release.Namespace | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
     app.kubernetes.io/component: kubeappsapis
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" . ) | nindent 4 }}
-    {{- end }}
   {{- if .Values.commonAnnotations }}
   annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 rules:
   - apiGroups:
-      - "packageinstalls.packaging.carvel.dev"
-      - "packagerepositories.packaging.carvel.dev"
-      - "source.toolkit.fluxcd.io"
-      - "helm.toolkit.fluxcd.io"
-    resources: ['*']
-    verbs: ['*']
-  # So that our dev user is seen as having access to a namespace.
-  # We'll need to add rbac for our dev user to install later as well.
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "list"]
-{{- if .Values.kubeappsapis.unsafeUseDemoSA }}
-# Dev-only ClusterRoleBinding to the ServiceAccount
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - list
 ---
 apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
 kind: ClusterRoleBinding
 metadata:
-  name: "kubeapps:controller:kubeapps-apis-dev-{{ .Release.Namespace }}"
-  namespace: {{ .Release.Namespace | quote }}
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
+  name: {{ printf "kubeapps:%s:kubeappsapis-ns-discovery" .Release.Namespace | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
     app.kubernetes.io/component: kubeappsapis
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" . ) | nindent 4 }}
-    {{- end }}
   {{- if .Values.commonAnnotations }}
   annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: "kubeapps:controller:kubeapps-apis-dev-{{ .Release.Namespace }}"
+  name: {{ printf "kubeapps:%s:kubeappsapis-ns-discovery" .Release.Namespace | quote }}
 subjects:
   - kind: ServiceAccount
-    name: {{ template "kubeapps.kubeappsapis.fullname" . }}
+    name: {{ template "kubeapps.kubeappsapis.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
-{{- end }}
-{{- end }}
-{{- end }}
+{{- if $.Values.featureFlags.operators }}
+---
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
+kind: ClusterRole
+metadata:
+  name: {{ printf "kubeapps:%s:kubeappsapis-operators" .Release.Namespace | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: kubeappsapis
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+rules:
+  - apiGroups:
+      - packages.operators.coreos.com
+    resources:
+      - packagemanifests/icon
+    verbs:
+      - get
+---
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "kubeapps:%s:kubeappsapis-operators" .Release.Namespace | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: kubeappsapis
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ printf "kubeapps:%s:kubeappsapis-operators" .Release.Namespace | quote }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "kubeapps.kubeappsapis.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end -}}
+{{- end -}}

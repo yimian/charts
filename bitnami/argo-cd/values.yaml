@@ -1,3 +1,6 @@
+# Copyright VMware, Inc.
+# SPDX-License-Identifier: APACHE-2.0
+
 ## @section Global parameters
 ## Global Docker image parameters
 ## Please, note that this will override the image parameters, including dependencies, configured to use the global value
@@ -44,19 +47,22 @@ extraDeploy: []
 
 ## Bitnami Argo CD image
 ## ref: https://hub.docker.com/r/bitnami/argo-cd/tags/
-## @param image.registry Argo CD image registry
-## @param image.repository Argo CD image repository
-## @param image.tag Argo CD image tag (immutable tags are recommended)
+## @param image.registry [default: REGISTRY_NAME] Argo CD image registry
+## @param image.repository [default: REPOSITORY_NAME/argo-cd] Argo CD image repository
+## @skip image.tag Argo CD image tag (immutable tags are recommended)
+## @param image.digest Argo CD image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
 ## @param image.pullPolicy Argo CD image pull policy
 ## @param image.pullSecrets Argo CD image pull secrets
+## @param image.debug Enable Argo CD image debug mode
 ##
 image:
   registry: docker.io
   repository: bitnami/argo-cd
-  tag: 2.1.6-debian-10-r0
+  tag: 2.9.3-debian-11-r0
+  digest: ""
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
   ## Optionally specify an array of imagePullSecrets.
@@ -67,6 +73,9 @@ image:
   ##   - myRegistryKeySecretName
   ##
   pullSecrets: []
+  ## Enable debug mode
+  ##
+  debug: false
 
 ## @section Argo CD application controller parameters
 
@@ -78,6 +87,20 @@ controller:
   replicaCount: 1
   ## Configure extra options for Argo CD containers' liveness and readiness probes
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ## @param controller.startupProbe.enabled Enable startupProbe on Argo CD nodes
+  ## @param controller.startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param controller.startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param controller.startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param controller.startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param controller.startupProbe.successThreshold Success threshold for startupProbe
+  ##
+  startupProbe:
+    enabled: false
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
   ## @param controller.livenessProbe.enabled Enable livenessProbe on Argo CD nodes
   ## @param controller.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
   ## @param controller.livenessProbe.periodSeconds Period seconds for livenessProbe
@@ -106,6 +129,9 @@ controller:
     timeoutSeconds: 1
     failureThreshold: 3
     successThreshold: 1
+  ## @param controller.customStartupProbe Custom startupProbe that overrides the default one
+  ##
+  customStartupProbe: {}
   ## @param controller.customLivenessProbe Custom livenessProbe that overrides the default one
   ##
   customLivenessProbe: {}
@@ -113,7 +139,7 @@ controller:
   ##
   customReadinessProbe: {}
   ## Argo CD resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ## @param controller.resources.limits The resources limits for the Argo CD containers
   ## @param controller.resources.requests The requested resources for the Argo CD containers
   ##
@@ -132,10 +158,25 @@ controller:
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param controller.containerSecurityContext.enabled Enabled Argo CD containers' Security Context
   ## @param controller.containerSecurityContext.runAsUser Set Argo CD containers' Security Context runAsUser
+  ## @param controller.containerSecurityContext.allowPrivilegeEscalation Set Argo CD containers' Security Context allowPrivilegeEscalation
+  ## @param controller.containerSecurityContext.capabilities.drop Set Argo CD containers' Security Context capabilities to be dropped
+  ## @param controller.containerSecurityContext.readOnlyRootFilesystem Set Argo CD containers' Security Context readOnlyRootFilesystem
+  ## @param controller.containerSecurityContext.runAsNonRoot Set Argo CD container's Security Context runAsNonRoot
+  ## @param controller.containerSecurityContext.privileged Set controller container's Security Context privileged
+  ## @param controller.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
   ##
   containerSecurityContext:
     enabled: true
     runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
+
 
   ## ServiceAccount configuration for the Argo CD application controller
   ##
@@ -148,7 +189,11 @@ controller:
     ##
     name: ""
     ## @param controller.serviceAccount.automountServiceAccountToken Automount service account token for the application controller service account
+    ##
     automountServiceAccountToken: true
+    ## @param controller.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+    ##
+    annotations: {}
 
   ## Enable admin clusterrole resources. Allows to Argo CD to deploy to the K8s cluster
   ## @param controller.clusterAdminAccess Enable K8s cluster admin access for the application controller
@@ -192,6 +237,11 @@ controller:
     ##
     nodePort: ""
 
+    ## @param controller.service.clusterIP Argo CD application controller service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
     ## @param controller.service.loadBalancerIP Argo CD application controller service Load Balancer IP
     ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
     ##
@@ -204,12 +254,25 @@ controller:
     ##
     loadBalancerSourceRanges: []
     ## @param controller.service.externalTrafficPolicy Argo CD application controller service external traffic policy
-    ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
     ##
     externalTrafficPolicy: Cluster
     ## @param controller.service.annotations Additional custom annotations for Argo CD application controller service
     ##
     annotations: {}
+    ## @param controller.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param controller.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+    ## If "ClientIP", consecutive client requests will be directed to the same Pod
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+    ##
+    sessionAffinity: None
+    ## @param controller.service.sessionAffinityConfig Additional settings for the sessionAffinity
+    ## sessionAffinityConfig:
+    ##   clientIP:
+    ##     timeoutSeconds: 300
+    sessionAffinityConfig: {}
 
   ## Metrics configuration for Argo CD application controller
   ##
@@ -231,6 +294,11 @@ controller:
       ##
       nodePort: ""
 
+      ## @param controller.metrics.service.clusterIP Argo CD application controller metrics service Cluster IP
+      ## e.g.:
+      ## clusterIP: None
+      ##
+      clusterIP: ""
       ## @param controller.metrics.service.loadBalancerIP Argo CD application controller service Load Balancer IP
       ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
       ##
@@ -243,18 +311,63 @@ controller:
       ##
       loadBalancerSourceRanges: []
       ## @param controller.metrics.service.externalTrafficPolicy Argo CD application controller service external traffic policy
-      ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+      ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
       ##
       externalTrafficPolicy: Cluster
       ## @param controller.metrics.service.annotations Additional custom annotations for Argo CD application controller service
       ##
       annotations: {}
+      ## @param controller.metrics.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+      ## If "ClientIP", consecutive client requests will be directed to the same Pod
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+      ##
+      sessionAffinity: None
+      ## @param controller.metrics.service.sessionAffinityConfig Additional settings for the sessionAffinity
+      ## sessionAffinityConfig:
+      ##   clientIP:
+      ##     timeoutSeconds: 300
+      sessionAffinityConfig: {}
+
     ## Argo CD application controller metrics service monitor configuration
-    ## @param controller.metrics.serviceMonitor.enabled Enable service monirot for Argo CD application controller
-    ## @param controller.metrics.serviceMonitor.interval Interval for the Argo CD application controller service monitor
+    ##
     serviceMonitor:
+      ## @param controller.metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
       enabled: false
+      ## @param controller.metrics.serviceMonitor.namespace Namespace which Prometheus is running in
+      ## e.g:
+      ## namespace: monitoring
+      ##
+      namespace: ""
+      ## @param controller.metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+      ##
+      jobLabel: ""
+      ## @param controller.metrics.serviceMonitor.interval Interval at which metrics should be scraped
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
       interval: 30s
+      ## @param controller.metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      scrapeTimeout: 10s
+      ## @param controller.metrics.serviceMonitor.relabelings RelabelConfigs to apply to samples before scraping
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      relabelings: []
+      ## @param controller.metrics.serviceMonitor.metricRelabelings MetricRelabelConfigs to apply to samples before ingestion
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      metricRelabelings: []
+      ## @param controller.metrics.serviceMonitor.selector ServiceMonitor selector labels
+      ## ref: https://github.com/bitnami/charts/tree/main/bitnami/prometheus-operator#prometheus-configuration
+      ##
+      ## selector:
+      ##   prometheus: my-prometheus
+      ##
+      selector: {}
+      ## @param controller.metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+      ##
+      honorLabels: false
 
     ## Rules for PrometheusRule object if enabled
     ##
@@ -287,9 +400,9 @@ controller:
       ##   labels:
       ##     severity: warning
       ##   annotations:
-      ##     summary: "[{{`{{$labels.name}}`}}] Application not synchronized"
+      ##     summary: "[{{`{{ $labels.name }}`}}] Application not synchronized"
       ##     description: >
-      ##       The application [{{`{{$labels.name}}`}} has not been synchronized for over
+      ##       The application [{{`{{ $labels.name }}`}} has not been synchronized for over
       ##       12 hours which means that the state of this cloud has drifted away from the
       ##       state inside Git.
       ##
@@ -373,6 +486,23 @@ controller:
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   ##
   tolerations: []
+  ## @param controller.schedulerName Name of the k8s scheduler (other than default)
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+  ##
+  schedulerName: ""
+  ## @param controller.shareProcessNamespace Enable shared process namespace in a pod.
+  ## If set to false (default), each container will run in separate namespace, controller will have PID=1.
+  ## If set to true, the /pause will run as init process and will reap any zombie PIDs,
+  ## for example, generated by a custom exec probe running longer than a probe timeoutSeconds.
+  ## Enable this only if customLivenessProbe or customReadinessProbe is used and zombie PIDs are accumulating.
+  ## Ref: https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/
+  ##
+  shareProcessNamespace: false
+  ## @param controller.topologySpreadConstraints Topology Spread Constraints for pod assignment
+  ## https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  ## The value is evaluated as a template
+  ##
+  topologySpreadConstraints: []
   ## @param controller.updateStrategy.type Argo CD statefulset strategy type
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
@@ -384,6 +514,10 @@ controller:
   ## @param controller.priorityClassName Argo CD pods' priorityClassName
   ##
   priorityClassName: ""
+  ## @param controller.runtimeClassName Name of the runtime class to be used by pod(s)
+  ## ref: https://kubernetes.io/docs/concepts/containers/runtime-class/
+  ##
+  runtimeClassName: ""
   ## @param controller.lifecycleHooks for the Argo CD container(s) to automate configuration before or after startup
   ##
   lifecycleHooks: {}
@@ -428,6 +562,969 @@ controller:
   ##
   initContainers: []
 
+## @section Argo CD ApplicationSet controller parameters
+
+## ApplicationSet controller
+##
+applicationSet:
+  ## @param applicationSet.enabled Enable ApplicationSet controller
+  ##
+  enabled: false
+  ## @param applicationSet.replicaCount The number of ApplicationSet controller pods to run
+  ##
+  replicaCount: 1
+  ## @param applicationSet.command Override default container command (useful when using custom images)
+  ##
+  command: []
+  ## Arguments that will be used by default for the application controller
+  ## @param applicationSet.defaultArgs.enableLeaderElection Enable leader election
+  ## @param applicationSet.defaultArgs.policy Default policy
+  ## @param applicationSet.defaultArgs.debug Enable debug mode
+  ## @param applicationSet.defaultArgs.dryRun Enable dry-run mode
+  ##
+  defaultArgs:
+    enableLeaderElection: false
+    policy: "sync"
+    debug: false
+    dryRun: false
+  ## @param applicationSet.args Override default container args (useful when using custom images). Overrides the defaultArgs.
+  ##
+  args: []
+  ## @param applicationSet.extraArgs Add extra arguments to the default arguments for the Argo CD applicationSet controller
+  ##
+  extraArgs: []
+  ## Argo CD applicationSet controller log format: text|json
+  ## @param applicationSet.logFormat Format for the Argo CD applicationSet controller logs. Options: [text, json]
+  ##
+  logFormat: text
+  ## Argo CD applicationSet controller log level
+  ## @param applicationSet.logLevel Log level for the Argo CD applicationSet controller
+  ##
+  logLevel: info
+  ## Argo CD applicationSet controller ports
+  ## @param applicationSet.containerPorts.metrics Argo CD applicationSet controller metrics port number
+  ## @param applicationSet.containerPorts.probe Argo CD applicationSet controller probe port number
+  ##
+  containerPorts:
+    metrics: 8085
+    probe: 8081
+  ## Metrics configuration for Argo CD applicationSet controller
+  ##
+  metrics:
+    ## @param applicationSet.metrics.enabled Enable Argo CD applicationSet controller metrics
+    ##
+    enabled: false
+    service:
+      ## @param applicationSet.metrics.service.type Argo CD applicationSet controller service type
+      ##
+      type: ClusterIP
+      ## @param applicationSet.metrics.service.port Argo CD applicationSet controller metrics service port
+      ##
+      port: 8085
+      ## Node ports to expose
+      ## @param applicationSet.metrics.service.nodePort Node port for the applicationSet controller service
+      ## NOTE: choose port between <30000-32767>
+      ##
+      nodePort: ""
+      ## @param applicationSet.metrics.service.clusterIP Argo CD applicationSet controller metrics service Cluster IP
+      ## e.g.:
+      ## clusterIP: None
+      ##
+      clusterIP: ""
+      ## @param applicationSet.metrics.service.loadBalancerIP Argo CD applicationSet controller service Load Balancer IP
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+      ##
+      loadBalancerIP: ""
+      ## @param applicationSet.metrics.service.loadBalancerSourceRanges Argo CD applicationSet controller service Load Balancer sources
+      ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+      ## e.g:
+      ## loadBalancerSourceRanges:
+      ##   - 10.10.10.0/24
+      ##
+      loadBalancerSourceRanges: []
+      ## @param applicationSet.metrics.service.externalTrafficPolicy Argo CD applicationSet controller service external traffic policy
+      ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+      ##
+      externalTrafficPolicy: Cluster
+      ## @param applicationSet.metrics.service.annotations Additional custom annotations for Argo CD applicationSet controller service
+      ##
+      annotations: {}
+      ## @param applicationSet.metrics.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+      ## If "ClientIP", consecutive client requests will be directed to the same Pod
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+      ##
+      sessionAffinity: None
+      ## @param applicationSet.metrics.service.sessionAffinityConfig Additional settings for the sessionAffinity
+      ## sessionAffinityConfig:
+      ##   clientIP:
+      ##     timeoutSeconds: 300
+      ##
+      sessionAffinityConfig: {}
+    ## Argo CD applicationSet controller metrics service monitor configuration
+    ##
+    serviceMonitor:
+      ## @param applicationSet.metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
+      enabled: false
+      ## @param applicationSet.metrics.serviceMonitor.namespace Namespace which Prometheus is running in
+      ## e.g:
+      ## namespace: monitoring
+      ##
+      namespace: ""
+      ## @param applicationSet.metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+      ##
+      jobLabel: ""
+      ## @param applicationSet.metrics.serviceMonitor.interval Interval at which metrics should be scraped
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      interval: 30s
+      ## @param applicationSet.metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      scrapeTimeout: 10s
+      ## @param applicationSet.metrics.serviceMonitor.relabelings RelabelConfigs to apply to samples before scraping
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      relabelings: []
+      ## @param applicationSet.metrics.serviceMonitor.metricRelabelings MetricRelabelConfigs to apply to samples before ingestion
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      metricRelabelings: []
+      ## @param applicationSet.metrics.serviceMonitor.selector ServiceMonitor selector labels
+      ## ref: https://github.com/bitnami/charts/tree/main/bitnami/prometheus-operator#prometheus-configuration
+      ##
+      ## selector:
+      ##   prometheus: my-prometheus
+      ##
+      selector: {}
+      ## @param applicationSet.metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+      ##
+      honorLabels: false
+  ## Argo CD applicationSet controller service parameters
+  ##
+  service:
+    ## @param applicationSet.service.type Argo CD applicationSet controller service type
+    ##
+    type: ClusterIP
+    ## @param applicationSet.service.port Argo CD applicationSet controller service port
+    ##
+    port: 7000
+
+    ## Node ports to expose
+    ## @param applicationSet.service.nodePort Node port for Argo CD applicationSet controller service
+    ## NOTE: choose port between <30000-32767>
+    ##
+    nodePort: ""
+    ## @param applicationSet.service.clusterIP Argo CD applicationSet controller service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
+    ## @param applicationSet.service.loadBalancerIP Argo CD applicationSet controller service Load Balancer IP
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+    ##
+    loadBalancerIP: ""
+    ## @param applicationSet.service.loadBalancerSourceRanges Argo CD applicationSet controller service Load Balancer sources
+    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+    ## e.g:
+    ## loadBalancerSourceRanges:
+    ##   - 10.10.10.0/24
+    ##
+    loadBalancerSourceRanges: []
+    ## @param applicationSet.service.externalTrafficPolicy Argo CD applicationSet controller service external traffic policy
+    ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ##
+    externalTrafficPolicy: Cluster
+    ## @param applicationSet.service.annotations Additional custom annotations for Argo CD applicationSet controller service
+    ##
+    annotations: {}
+    ## @param applicationSet.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param applicationSet.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+    ## If "ClientIP", consecutive client requests will be directed to the same Pod
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+    ##
+    sessionAffinity: None
+    ## @param applicationSet.service.sessionAffinityConfig Additional settings for the sessionAffinity
+    ## sessionAffinityConfig:
+    ##   clientIP:
+    ##     timeoutSeconds: 300
+    ##
+    sessionAffinityConfig: {}
+  ## ServiceAccount configuration for the Argo CD applicationSet controller
+  ##
+  serviceAccount:
+    ## @param applicationSet.serviceAccount.create Specifies whether a ServiceAccount should be created
+    ##
+    create: true
+    ## @param applicationSet.serviceAccount.name The name of the ServiceAccount to use.
+    ## If not set and create is true, a name is generated using the common.names.fullname template
+    ##
+    name: ""
+    ## @param applicationSet.serviceAccount.automountServiceAccountToken Automount service account token for the applicationSet controller service account
+    ##
+    automountServiceAccountToken: true
+    ## @param applicationSet.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+    ##
+    annotations: {}
+  ## @param applicationSet.podAffinityPreset Pod affinity preset. Ignored if `applicationSet.affinity` is set. Allowed values: `soft` or `hard`
+  ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+  ##
+  podAffinityPreset: ""
+  ## @param applicationSet.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `applicationSet.affinity` is set. Allowed values: `soft` or `hard`
+  ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+  ##
+  podAntiAffinityPreset: soft
+  ## Node applicationSet.affinity preset
+  ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
+  ##
+  nodeAffinityPreset:
+    ## @param applicationSet.nodeAffinityPreset.type Node affinity preset type. Ignored if `applicationSet.affinity` is set. Allowed values: `soft` or `hard`
+    ##
+    type: ""
+    ## @param applicationSet.nodeAffinityPreset.key Node label key to match. Ignored if `applicationSet.affinity` is set
+    ##
+    key: ""
+    ## @param applicationSet.nodeAffinityPreset.values Node label values to match. Ignored if `applicationSet.affinity` is set
+    ## E.g.
+    ## values:
+    ##   - e2e-az1
+    ##   - e2e-az2
+    ##
+    values: []
+  ## @param applicationSet.affinity Affinity for Argo CD applicationSet controller pods assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  ## NOTE: `applicationSet.podAffinityPreset`, `applicationSet.podAntiAffinityPreset`, and `applicationSet.nodeAffinityPreset` will be ignored when it's set
+  ##
+  affinity: {}
+  ## @param applicationSet.podAnnotations Annotations for Argo CD applicationSet controller pods
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  podAnnotations: {}
+  ## @param applicationSet.podLabels Extra labels for Argo CD applicationSet controller pods
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  ##
+  podLabels: {}
+  ## Configure Container Security Context
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+  ## @param applicationSet.containerSecurityContext.enabled Enabled Argo CD applicationSet controller containers' Security Context
+  ## @param applicationSet.containerSecurityContext.runAsUser Set Argo CD applicationSet controller containers' Security Context runAsUser
+  ## @param applicationSet.containerSecurityContext.allowPrivilegeEscalation Set Argo CD applicationSet controller containers' Security Context allowPrivilegeEscalation
+  ## @param applicationSet.containerSecurityContext.capabilities.drop Set Argo CD applicationSet controller containers' Security Context capabilities to be dropped
+  ## @param applicationSet.containerSecurityContext.readOnlyRootFilesystem Set Argo CD applicationSet controller containers' Security Context readOnlyRootFilesystem
+  ## @param applicationSet.containerSecurityContext.runAsNonRoot Set Argo CD applicationSet controller container's Security Context runAsNonRoot
+  ## @param applicationSet.containerSecurityContext.privileged Set applicationSet container's Security Context privileged
+  ## @param applicationSet.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
+  ##
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
+  ## @param applicationSet.livenessProbe.enabled Enable livenessProbe on Argo CD applicationSet controller nodes
+  ## @param applicationSet.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+  ## @param applicationSet.livenessProbe.periodSeconds Period seconds for livenessProbe
+  ## @param applicationSet.livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+  ## @param applicationSet.livenessProbe.failureThreshold Failure threshold for livenessProbe
+  ## @param applicationSet.livenessProbe.successThreshold Success threshold for livenessProbe
+  ##
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
+  ## @param applicationSet.readinessProbe.enabled Enable readinessProbe on Argo CD applicationSet controller nodes
+  ## @param applicationSet.readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+  ## @param applicationSet.readinessProbe.periodSeconds Period seconds for readinessProbe
+  ## @param applicationSet.readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+  ## @param applicationSet.readinessProbe.failureThreshold Failure threshold for readinessProbe
+  ## @param applicationSet.readinessProbe.successThreshold Success threshold for readinessProbe
+  ##
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
+  ## @param applicationSet.customLivenessProbe Custom livenessProbe that overrides the default one
+  ##
+  customLivenessProbe: {}
+  ## @param applicationSet.customReadinessProbe Custom readinessProbe that overrides the default one
+  ##
+  customReadinessProbe: {}
+  ## Argo CD applicationSet controller resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## @param applicationSet.resources.limits The resources limits for the Argo CD applicationSet controller containers
+  ## @param applicationSet.resources.requests The requested resources for the Argo CD applicationSet controller containers
+  ##
+  resources:
+    limits: {}
+    requests: {}
+  ## Configure Pods Security Context
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+  ## @param applicationSet.podSecurityContext.enabled Enabled Argo CD applicationSet controller pods' Security Context
+  ## @param applicationSet.podSecurityContext.fsGroup Set Argo CD applicationSet controller pod's Security Context fsGroup
+  ##
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1001
+  ## @param applicationSet.nodeSelector Node labels for Argo CD applicationSet controller pods assignment
+  ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## @param applicationSet.tolerations Tolerations for Argo CD applicationSet controller pods assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  ##
+  tolerations: []
+  ## @param applicationSet.updateStrategy.type Argo CD applicationSet controller statefulset strategy type
+  ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
+  ##
+  updateStrategy:
+    ## StrategyType
+    ## Can be set to RollingUpdate or OnDelete
+    ##
+    type: RollingUpdate
+  ## @param applicationSet.priorityClassName Argo CD applicationSet controller pods' priorityClassName
+  ##
+  priorityClassName: ""
+  ## @param applicationSet.extraVolumes Optionally specify extra list of additional volumes for the Argo CD applicationSet controller pod(s)
+  ##
+  extraVolumes: []
+  ## @param applicationSet.extraVolumeMounts Optionally specify extra list of additional volumeMounts for the Argo CD applicationSet controller container(s)
+  ##
+  extraVolumeMounts: []
+  ## @param applicationSet.extraEnvVars Array with extra environment variables to add to Argo CD applicationSet controller nodes
+  ## e.g:
+  ## extraEnvVars:
+  ##   - name: FOO
+  ##     value: "bar"
+  ##
+  extraEnvVars: []
+  ## @param applicationSet.extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Argo CD applicationSet controller nodes
+  ##
+  extraEnvVarsCM: ""
+  ## @param applicationSet.extraEnvVarsSecret Name of existing Secret containing extra env vars for Argo CD applicationSet controller nodes
+  ##
+  extraEnvVarsSecret: ""
+  ## Webhook for the Git Generator
+  ## Ref: https://argocd-applicationset.readthedocs.io/en/master/Generators-Git/#webhook-configuration)
+  ##
+  webhook:
+    ingress:
+      ## @param applicationSet.webhook.ingress.enabled Enable an ingress resource for Webhooks
+      ##
+      enabled: false
+      ## DEPRECATED: Use server.ingress.annotations instead of server.ingress.certManager
+      ## certManager: false
+      ##
+      ## @param applicationSet.webhook.ingress.annotations Additional ingress annotations
+      ##
+      annotations: {}
+      ## @param applicationSet.webhook.ingress.labels Additional ingress labels
+      ##
+      labels: {}
+      ## @param applicationSet.webhook.ingress.ingressClassName Defines which ingress controller will implement the resource
+      ##
+      ingressClassName: ""
+      ## @param applicationSet.webhook.ingress.hostname Ingress hostname for the Argo CD applicationSet ingress
+      ## Hostname must be provided if Ingress is enabled.
+      ##
+      hostname: ""
+      ## @param applicationSet.webhook.ingress.path Argo CD applicationSet ingress path
+      ##
+      path: /api/webhook
+      ## @param applicationSet.webhook.ingress.pathType Ingress path type. One of `Exact`, `Prefix` or `ImplementationSpecific`
+      ##
+      pathType: Prefix
+      ## @param applicationSet.webhook.ingress.extraHosts Extra hosts array for the Argo CD applicationSet ingress
+      ## The list of additional hostnames to be covered with this ingress record.
+      ## Most likely the hostname above will be enough, but in the event more hosts are needed, this is an array
+      ##
+      extraHosts: []
+      ## @param applicationSet.webhook.ingress.extraPaths Extra paths for the Argo CD applicationSet ingress
+      ## Any additional arbitrary paths that may need to be added to the ingress under the main host.
+      ## For example: The ALB ingress controller requires a special rule for handling SSL redirection.
+      ##
+      extraPaths: []
+      ## - path: /*
+      ##   backend:
+      ##     serviceName: ssl-redirect
+      ##     servicePort: use-annotation
+      ##
+      ## @param applicationSet.webhook.ingress.extraTls Extra TLS configuration for the Argo CD applicationSet ingress
+      ## The tls configuration for additional hostnames to be covered with this ingress record.
+      ## see: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+      ##
+      extraTls: []
+      ## - hosts:
+      ##     - argocd.server.local
+      ##   secretName: argocd.server.local-tls
+      ##
+      ## @param applicationSet.webhook.ingress.tls Ingress TLS configuration
+      ##
+      tls: []
+
+## @section Argo CD notifications controller parameters
+
+## notifications controller
+##
+notifications:
+  ## @param notifications.enabled Enable notifications controller
+  ##
+  enabled: false
+  ## @param notifications.command Override default container command (useful when using custom images)
+  ##
+  command: []
+  ## @param notifications.args Override default container args (useful when using custom images).
+  ##
+  args: []
+  ## @param notifications.extraArgs Add extra arguments to the default arguments for the Argo CD notifications controller
+  ##
+  extraArgs: []
+  ## Argo CD notifications controller log format: text|json
+  ## @param notifications.logFormat Format for the Argo CD notifications controller logs. Options: [text, json]
+  ##
+  logFormat: text
+  ## Argo CD notifications controller log level
+  ## @param notifications.logLevel Log level for the Argo CD notifications controller
+  ##
+  logLevel: info
+  ## Argo CD notifications controller ports
+  ## @param notifications.containerPorts.metrics Argo CD notifications controller metrics port number
+  ##
+  containerPorts:
+    metrics: 8085
+  ## Metrics configuration for Argo CD notifications controller
+  ##
+  metrics:
+    ## @param notifications.metrics.enabled Enable Argo CD notifications controller metrics
+    ##
+    enabled: false
+    service:
+      ## @param notifications.metrics.service.type Argo CD notifications controller service type
+      ##
+      type: ClusterIP
+      ## @param notifications.metrics.service.port Argo CD notifications controller metrics service port
+      ##
+      port: 8085
+      ## Node ports to expose
+      ## @param notifications.metrics.service.nodePort Node port for the notifications controller service
+      ## NOTE: choose port between <30000-32767>
+      ##
+      nodePort: ""
+      ## @param notifications.metrics.service.clusterIP Argo CD notifications controller metrics service Cluster IP
+      ## e.g.:
+      ## clusterIP: None
+      ##
+      clusterIP: ""
+      ## @param notifications.metrics.service.loadBalancerIP Argo CD notifications controller service Load Balancer IP
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+      ##
+      loadBalancerIP: ""
+      ## @param notifications.metrics.service.loadBalancerSourceRanges Argo CD notifications controller service Load Balancer sources
+      ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+      ## e.g:
+      ## loadBalancerSourceRanges:
+      ##   - 10.10.10.0/24
+      ##
+      loadBalancerSourceRanges: []
+      ## @param notifications.metrics.service.externalTrafficPolicy Argo CD notifications controller service external traffic policy
+      ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+      ##
+      externalTrafficPolicy: Cluster
+      ## @param notifications.metrics.service.annotations Additional custom annotations for Argo CD notifications controller service
+      ##
+      annotations: {}
+      ## @param notifications.metrics.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+      ## If "ClientIP", consecutive client requests will be directed to the same Pod
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+      ##
+      sessionAffinity: None
+      ## @param notifications.metrics.service.sessionAffinityConfig Additional settings for the sessionAffinity
+      ## sessionAffinityConfig:
+      ##   clientIP:
+      ##     timeoutSeconds: 300
+      ##
+      sessionAffinityConfig: {}
+    ## Argo CD notifications controller metrics service monitor configuration
+    ##
+    serviceMonitor:
+      ## @param notifications.metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
+      enabled: false
+      ## @param notifications.metrics.serviceMonitor.namespace Namespace which Prometheus is running in
+      ## e.g:
+      ## namespace: monitoring
+      ##
+      namespace: ""
+      ## @param notifications.metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+      ##
+      jobLabel: ""
+      ## @param notifications.metrics.serviceMonitor.interval Interval at which metrics should be scraped
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      interval: 30s
+      ## @param notifications.metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      scrapeTimeout: 10s
+      ## @param notifications.metrics.serviceMonitor.relabelings RelabelConfigs to apply to samples before scraping
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      relabelings: []
+      ## @param notifications.metrics.serviceMonitor.metricRelabelings MetricRelabelConfigs to apply to samples before ingestion
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      metricRelabelings: []
+      ## @param notifications.metrics.serviceMonitor.selector ServiceMonitor selector labels
+      ## ref: https://github.com/bitnami/charts/tree/main/bitnami/prometheus-operator#prometheus-configuration
+      ##
+      ## selector:
+      ##   prometheus: my-prometheus
+      ##
+      selector: {}
+      ## @param notifications.metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+      ##
+      honorLabels: false
+  ## Argo CD notifications controller service parameters
+  ##
+  service:
+    ## @param notifications.service.type Argo CD notifications controller service type
+    ##
+    type: ClusterIP
+    ## @param notifications.service.port Argo CD notifications controller service port
+    ##
+    port: 7000
+
+    ## Node ports to expose
+    ## @param notifications.service.nodePort Node port for Argo CD notifications controller service
+    ## NOTE: choose port between <30000-32767>
+    ##
+    nodePort: ""
+    ## @param notifications.service.clusterIP Argo CD notifications controller service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
+    ## @param notifications.service.loadBalancerIP Argo CD notifications controller service Load Balancer IP
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+    ##
+    loadBalancerIP: ""
+    ## @param notifications.service.loadBalancerSourceRanges Argo CD notifications controller service Load Balancer sources
+    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+    ## e.g:
+    ## loadBalancerSourceRanges:
+    ##   - 10.10.10.0/24
+    ##
+    loadBalancerSourceRanges: []
+    ## @param notifications.service.externalTrafficPolicy Argo CD notifications controller service external traffic policy
+    ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ##
+    externalTrafficPolicy: Cluster
+    ## @param notifications.service.annotations Additional custom annotations for Argo CD notifications controller service
+    ##
+    annotations: {}
+    ## @param notifications.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param notifications.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+    ## If "ClientIP", consecutive client requests will be directed to the same Pod
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+    ##
+    sessionAffinity: None
+    ## @param notifications.service.sessionAffinityConfig Additional settings for the sessionAffinity
+    ## sessionAffinityConfig:
+    ##   clientIP:
+    ##     timeoutSeconds: 300
+    ##
+    sessionAffinityConfig: {}
+  ## ServiceAccount configuration for the Argo CD notifications controller
+  ##
+  serviceAccount:
+    ## @param notifications.serviceAccount.create Specifies whether a ServiceAccount should be created
+    ##
+    create: true
+    ## @param notifications.serviceAccount.name The name of the ServiceAccount to use.
+    ## If not set and create is true, a name is generated using the common.names.fullname template
+    ##
+    name: ""
+    ## @param notifications.serviceAccount.automountServiceAccountToken Automount service account token for the notifications controller service account
+    ##
+    automountServiceAccountToken: true
+    ## @param notifications.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+    ##
+    annotations: {}
+  ## @param notifications.podAffinityPreset Pod affinity preset. Ignored if `notifications.affinity` is set. Allowed values: `soft` or `hard`
+  ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+  ##
+  podAffinityPreset: ""
+  ## @param notifications.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `notifications.affinity` is set. Allowed values: `soft` or `hard`
+  ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+  ##
+  podAntiAffinityPreset: soft
+  ## Node notifications.affinity preset
+  ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
+  ##
+  nodeAffinityPreset:
+    ## @param notifications.nodeAffinityPreset.type Node affinity preset type. Ignored if `notifications.affinity` is set. Allowed values: `soft` or `hard`
+    ##
+    type: ""
+    ## @param notifications.nodeAffinityPreset.key Node label key to match. Ignored if `notifications.affinity` is set
+    ##
+    key: ""
+    ## @param notifications.nodeAffinityPreset.values Node label values to match. Ignored if `notifications.affinity` is set
+    ## E.g.
+    ## values:
+    ##   - e2e-az1
+    ##   - e2e-az2
+    ##
+    values: []
+  ## @param notifications.affinity Affinity for Argo CD notifications controller pods assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  ## NOTE: `notifications.podAffinityPreset`, `notifications.podAntiAffinityPreset`, and `notifications.nodeAffinityPreset` will be ignored when it's set
+  ##
+  affinity: {}
+  ## @param notifications.podAnnotations Annotations for Argo CD notifications controller pods
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  ##
+  podAnnotations: {}
+  ## @param notifications.podLabels Extra labels for Argo CD notifications controller pods
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  ##
+  podLabels: {}
+  ## Configure Container Security Context
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+  ## @param notifications.containerSecurityContext.enabled Enabled Argo CD notifications controller containers' Security Context
+  ## @param notifications.containerSecurityContext.runAsUser Set Argo CD notifications controller containers' Security Context runAsUser
+  ## @param notifications.containerSecurityContext.allowPrivilegeEscalation Set Argo CD notifications controller containers' Security Context allowPrivilegeEscalation
+  ## @param notifications.containerSecurityContext.capabilities.drop Set Argo CD notifications controller containers' Security Context capabilities to be dropped
+  ## @param notifications.containerSecurityContext.readOnlyRootFilesystem Set Argo CD notifications controller containers' Security Context readOnlyRootFilesystem
+  ## @param notifications.containerSecurityContext.runAsNonRoot Set Argo CD notifications controller container's Security Context runAsNonRoot
+  ## @param notifications.containerSecurityContext.privileged Set notifications container's Security Context privileged
+  ## @param notifications.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
+  ##
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
+  ## Argo CD notifications controller resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## @param notifications.resources.limits The resources limits for the Argo CD notifications controller containers
+  ## @param notifications.resources.requests The requested resources for the Argo CD notifications controller containers
+  ##
+  resources:
+    limits: {}
+    requests: {}
+  ## Configure Pods Security Context
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+  ## @param notifications.podSecurityContext.enabled Enabled Argo CD notifications controller pods' Security Context
+  ## @param notifications.podSecurityContext.fsGroup Set Argo CD notifications controller pod's Security Context fsGroup
+  ##
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1001
+  ## @param notifications.nodeSelector Node labels for Argo CD notifications controller pods assignment
+  ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## @param notifications.tolerations Tolerations for Argo CD notifications controller pods assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  ##
+  tolerations: []
+  ## @param notifications.priorityClassName Argo CD notifications controller pods' priorityClassName
+  ##
+  priorityClassName: ""
+  ## @param notifications.extraVolumes Optionally specify extra list of additional volumes for the Argo CD notifications controller pod(s)
+  ##
+  extraVolumes: []
+  ## @param notifications.extraVolumeMounts Optionally specify extra list of additional volumeMounts for the Argo CD notifications controller container(s)
+  ##
+  extraVolumeMounts: []
+  ## @param notifications.extraEnvVars Array with extra environment variables to add to Argo CD notifications controller nodes
+  ## e.g:
+  ## extraEnvVars:
+  ##   - name: FOO
+  ##     value: "bar"
+  ##
+  extraEnvVars: []
+  ## @param notifications.extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Argo CD notifications controller nodes
+  ##
+  extraEnvVarsCM: ""
+  ## @param notifications.extraEnvVarsSecret Name of existing Secret containing extra env vars for Argo CD notifications controller nodes
+  ##
+  extraEnvVarsSecret: ""
+  ## Webhook for the Git Generator
+  ## Ref: https://argocd-notifications.readthedocs.io/en/master/Generators-Git/#webhook-configuration)
+  ##
+  webhook:
+    ingress:
+      ## @param notifications.webhook.ingress.enabled Enable an ingress resource for Webhooks
+      ##
+      enabled: false
+      ## DEPRECATED: Use server.ingress.annotations instead of server.ingress.certManager
+      ## certManager: false
+      ##
+      ## @param notifications.webhook.ingress.annotations Additional ingress annotations
+      ##
+      annotations: {}
+      ## @param notifications.webhook.ingress.labels Additional ingress labels
+      ##
+      labels: {}
+      ## @param notifications.webhook.ingress.ingressClassName Defines which ingress controller will implement the resource
+      ##
+      ingressClassName: ""
+      ## @param notifications.webhook.ingress.hostname Ingress hostname for the Argo CD notifications ingress
+      ## Hostname must be provided if Ingress is enabled.
+      ##
+      hostname: ""
+      ## @param notifications.webhook.ingress.path Argo CD notifications ingress path
+      ##
+      path: /api/webhook
+      ## @param notifications.webhook.ingress.pathType Ingress path type. One of `Exact`, `Prefix` or `ImplementationSpecific`
+      ##
+      pathType: Prefix
+      ## @param notifications.webhook.ingress.extraHosts Extra hosts array for the Argo CD notifications ingress
+      ## The list of additional hostnames to be covered with this ingress record.
+      ## Most likely the hostname above will be enough, but in the event more hosts are needed, this is an array
+      ##
+      extraHosts: []
+      ## @param notifications.webhook.ingress.extraPaths Extra paths for the Argo CD notifications ingress
+      ## Any additional arbitrary paths that may need to be added to the ingress under the main host.
+      ## For example: The ALB ingress controller requires a special rule for handling SSL redirection.
+      ##
+      extraPaths: []
+      ## - path: /*
+      ##   backend:
+      ##     serviceName: ssl-redirect
+      ##     servicePort: use-annotation
+      ##
+      ## @param notifications.webhook.ingress.extraTls Extra TLS configuration for the Argo CD notifications ingress
+      ## The tls configuration for additional hostnames to be covered with this ingress record.
+      ## see: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+      ##
+      extraTls: []
+      ## - hosts:
+      ##     - argocd.server.local
+      ##   secretName: argocd.server.local-tls
+      ##
+      ## @param notifications.webhook.ingress.tls Ingress TLS configuration
+      ##
+      tls: []
+
+  ## The optional bot component simplifies managing subscriptions
+  ## For more information: https://argocd-notifications.readthedocs.io/en/stable/bots/overview/
+  bots:
+    slack:
+      ## @param notifications.bots.slack.enabled Enable notifications controller
+      ##
+      enabled: false
+
+      ## @param notifications.bots.slack.command Override default container command (useful when using custom images)
+      ##
+      command: []
+
+      ## @param notifications.bots.slack.args Override default container args (useful when using custom images).
+      ##
+      args: []
+
+      ## @param notifications.bots.slack.extraArgs Add extra arguments to the default arguments for the Argo CD Slack bot
+      ##
+      extraArgs: []
+
+      ## Argo CD Slack bot service parameters
+      ##
+      service:
+        ## @param notifications.bots.slack.service.type Argo CD Slack bot service type
+        ##
+        type: LoadBalancer
+        ## @param notifications.bots.slack.service.port Argo CD Slack bot service port
+        ##
+        port: 80
+
+        ## Node ports to expose
+        ## @param notifications.bots.slack.service.nodePort Node port for Argo CD Slack bot service
+        ## NOTE: choose port between <30000-32767>
+        ##
+        nodePort: ""
+        ## @param notifications.bots.slack.service.clusterIP Argo CD Slack bot service Cluster IP
+        ## e.g.:
+        ## clusterIP: None
+        ##
+        clusterIP: ""
+        ## @param notifications.bots.slack.service.loadBalancerIP Argo CD Slack bot service Load Balancer IP
+        ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+        ##
+        loadBalancerIP: ""
+        ## @param notifications.bots.slack.service.loadBalancerSourceRanges Argo CD Slack bot service Load Balancer sources
+        ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+        ## e.g:
+        ## loadBalancerSourceRanges:
+        ##   - 10.10.10.0/24
+        ##
+        loadBalancerSourceRanges: []
+        ## @param notifications.bots.slack.service.externalTrafficPolicy Argo CD Slack bot service external traffic policy
+        ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+        ##
+        externalTrafficPolicy: Cluster
+        ## @param notifications.bots.slack.service.annotations Additional custom annotations for Argo CD Slack bot service
+        ##
+        annotations: {}
+        ## @param notifications.bots.slack.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+        ##
+        extraPorts: []
+        ## @param notifications.bots.slack.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+        ## If "ClientIP", consecutive client requests will be directed to the same Pod
+        ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+        ##
+        sessionAffinity: None
+        ## @param notifications.bots.slack.service.sessionAffinityConfig Additional settings for the sessionAffinity
+        ## sessionAffinityConfig:
+        ##   clientIP:
+        ##     timeoutSeconds: 300
+        ##
+        sessionAffinityConfig: {}
+
+      ## ServiceAccount configuration for the Argo CD Slack bot
+      ##
+      serviceAccount:
+        ## @param notifications.bots.slack.serviceAccount.create Specifies whether a ServiceAccount should be created
+        ##
+        create: true
+        ## @param notifications.bots.slack.serviceAccount.name The name of the ServiceAccount to use.
+        ## If not set and create is true, a name is generated using the common.names.fullname template
+        ##
+        name: ""
+        ## @param notifications.bots.slack.serviceAccount.automountServiceAccountToken Automount service account token for the notifications controller service account
+        ##
+        automountServiceAccountToken: true
+        ## @param notifications.bots.slack.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+        ##
+        annotations: {}
+
+      ## @param notifications.bots.slack.podAffinityPreset Pod affinity preset. Ignored if `notifications.bots.slack.affinity` is set. Allowed values: `soft` or `hard`
+      ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+      ##
+      podAffinityPreset: ""
+      ## @param notifications.bots.slack.podAntiAffinityPreset Pod anti-affinity preset. Ignored if `notifications.bots.slack.affinity` is set. Allowed values: `soft` or `hard`
+      ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#inter-pod-affinity-and-anti-affinity
+      ##
+      podAntiAffinityPreset: soft
+      ## Node notifications.bots.slack.affinity preset
+      ## ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity
+      ##
+      nodeAffinityPreset:
+        ## @param notifications.bots.slack.nodeAffinityPreset.type Node affinity preset type. Ignored if `notifications.bots.slack.affinity` is set. Allowed values: `soft` or `hard`
+        ##
+        type: ""
+        ## @param notifications.bots.slack.nodeAffinityPreset.key Node label key to match. Ignored if `notifications.bots.slack.affinity` is set
+        ##
+        key: ""
+        ## @param notifications.bots.slack.nodeAffinityPreset.values Node label values to match. Ignored if `notifications.bots.slack.affinity` is set
+        ## E.g.
+        ## values:
+        ##   - e2e-az1
+        ##   - e2e-az2
+        ##
+        values: []
+      ## @param notifications.bots.slack.affinity Affinity for Argo CD Slack bot pods assignment
+      ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+      ## NOTE: `notifications.bots.slack.podAffinityPreset`, `notifications.bots.slack.podAntiAffinityPreset`, and `notifications.bots.slack.nodeAffinityPreset` will be ignored when it's set
+      ##
+      affinity: {}
+      ## @param notifications.bots.slack.podAnnotations Annotations for Argo CD Slack bot pods
+      ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+      ##
+      podAnnotations: {}
+      ## @param notifications.bots.slack.podLabels Extra labels for Argo CD Slack bot pods
+      ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+      ##
+      podLabels: {}
+      ## Configure Container Security Context
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+      ## @param notifications.bots.slack.containerSecurityContext.enabled Enabled Argo CD Slack bot containers' Security Context
+      ## @param notifications.bots.slack.containerSecurityContext.runAsUser Set Argo CD Slack bot containers' Security Context runAsUser
+      ## @param notifications.bots.slack.containerSecurityContext.allowPrivilegeEscalation Set Argo CD Slack bot containers' Security Context allowPrivilegeEscalation
+      ## @param notifications.bots.slack.containerSecurityContext.capabilities.drop Set Argo CD Slack bot containers' Security Context capabilities to be dropped
+      ## @param notifications.bots.slack.containerSecurityContext.readOnlyRootFilesystem Set Argo CD Slack bot containers' Security Context readOnlyRootFilesystem
+      ## @param notifications.bots.slack.containerSecurityContext.runAsNonRoot Set Argo CD Slack bot container's Security Context runAsNonRoot
+      ## @param notifications.bots.slack.containerSecurityContext.privileged Set notifications container's Security Context privileged
+      ## @param notifications.bots.slack.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
+      ##
+      containerSecurityContext:
+        enabled: true
+        runAsUser: 1001
+        runAsNonRoot: true
+        readOnlyRootFilesystem: false
+        allowPrivilegeEscalation: false
+        privileged: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: "RuntimeDefault"
+      ## Argo CD Slack bot resource requests and limits
+      ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+      ## @param notifications.bots.slack.resources.limits The resources limits for the Argo CD Slack bot containers
+      ## @param notifications.bots.slack.resources.requests The requested resources for the Argo CD Slack bot containers
+      ##
+      resources:
+        limits: {}
+        requests: {}
+      ## Configure Pods Security Context
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+      ## @param notifications.bots.slack.podSecurityContext.enabled Enabled Argo CD Slack bot pods' Security Context
+      ## @param notifications.bots.slack.podSecurityContext.fsGroup Set Argo CD Slack bot pod's Security Context fsGroup
+      ##
+      podSecurityContext:
+        enabled: true
+        fsGroup: 1001
+      ## @param notifications.bots.slack.nodeSelector Node labels for Argo CD Slack bot pods assignment
+      ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+      ##
+      nodeSelector: {}
+      ## @param notifications.bots.slack.tolerations Tolerations for Argo CD Slack bot pods assignment
+      ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+      ##
+      tolerations: []
+      ## @param notifications.bots.slack.priorityClassName Argo CD Slack bot pods' priorityClassName
+      ##
+      priorityClassName: ""
+      ## @param notifications.bots.slack.extraVolumes Optionally specify extra list of additional volumes for the Argo CD Slack bot pod(s)
+      ##
+      extraVolumes: []
+      ## @param notifications.bots.slack.extraVolumeMounts Optionally specify extra list of additional volumeMounts for the Argo CD Slack bot container(s)
+      ##
+      extraVolumeMounts: []
+      ## @param notifications.bots.slack.extraEnvVars Array with extra environment variables to add to Argo CD Slack bot nodes
+      ## e.g:
+      ## extraEnvVars:
+      ##   - name: FOO
+      ##     value: "bar"
+      ##
+      extraEnvVars: []
+      ## @param notifications.bots.slack.extraEnvVarsCM Name of existing ConfigMap containing extra env vars for Argo CD Slack bot nodes
+      ##
+      extraEnvVarsCM: ""
+      ## @param notifications.bots.slack.extraEnvVarsSecret Name of existing Secret containing extra env vars for Argo CD Slack bot nodes
+      ##
+      extraEnvVarsSecret: ""
+
 
 ## @section Argo CD server Parameters
 
@@ -439,6 +1536,20 @@ server:
   replicaCount: 1
   ## Configure extra options for Argo CD server containers' liveness and readiness probes
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ## @param server.startupProbe.enabled Enable startupProbe on Argo CD server nodes
+  ## @param server.startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param server.startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param server.startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param server.startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param server.startupProbe.successThreshold Success threshold for startupProbe
+  ##
+  startupProbe:
+    enabled: false
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
   ## @param server.livenessProbe.enabled Enable livenessProbe on Argo CD server nodes
   ## @param server.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
   ## @param server.livenessProbe.periodSeconds Period seconds for livenessProbe
@@ -467,6 +1578,9 @@ server:
     timeoutSeconds: 1
     failureThreshold: 3
     successThreshold: 1
+  ## @param server.customStartupProbe Custom startupProbe that overrides the default one
+  ##
+  customStartupProbe: {}
   ## @param server.customLivenessProbe Custom livenessProbe that overrides the default one
   ##
   customLivenessProbe: {}
@@ -474,7 +1588,7 @@ server:
   ##
   customReadinessProbe: {}
   ## Argo CD server resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ## @param server.resources.limits The resources limits for the Argo CD server containers
   ## @param server.resources.requests The requested resources for the Argo CD server containers
   ##
@@ -493,10 +1607,24 @@ server:
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param server.containerSecurityContext.enabled Enabled Argo CD server containers' Security Context
   ## @param server.containerSecurityContext.runAsUser Set Argo CD server containers' Security Context runAsUser
+  ## @param server.containerSecurityContext.allowPrivilegeEscalation Set Argo CD server containers' Security Context allowPrivilegeEscalation
+  ## @param server.containerSecurityContext.capabilities.drop Set Argo CD containers' server Security Context capabilities to be dropped
+  ## @param server.containerSecurityContext.readOnlyRootFilesystem Set Argo CD containers' server Security Context readOnlyRootFilesystem
+  ## @param server.containerSecurityContext.runAsNonRoot Set Argo CD server containers' Security Context runAsNonRoot
+  ## @param server.containerSecurityContext.privileged Set server container's Security Context privileged
+  ## @param server.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
   ##
   containerSecurityContext:
     enabled: true
     runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
 
   ## Argo CD server deployment autoscaling
   ## @param server.autoscaling.enabled Enable Argo CD server deployment autoscaling
@@ -536,8 +1664,8 @@ server:
   url: ""
 
   ## Argo CD server config. This object will be directly rendered
-  ## @param server.config [string] Argo CD server configuration that will end on the argocd-cm Config Map
-  ## Ref: https://argoproj.github.io/argo-cd/operator-manual/user-management/
+  ## @param server.config [object] Argo CD server configuration that will end on the argocd-cm Config Map
+  ## Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/
   ## E.g:
   ## repositories:
   ##   - url: git@github.com:group/repo.git
@@ -573,15 +1701,12 @@ server:
   ##          clientSecret: $dex.github.clientSecret
   ##          orgs:
   ##          - name: your-github-org
-  config: |
-    {{- if .Values.config.styles }}
-    ui.cssurl: "./custom/custom.styles.css"
-    {{- end }}
+  config:
     ## Argo CD external base URL. Required when configuring SSO. Required when enabling dex.
     ## E.g:
     ## url: https://argocd.example.com
     ##
-    url: {{ .Values.server.url | quote }}
+    url: "{{ .Values.server.url }}"
     ## Argo CD instance label key
     ##
     application.instanceLabelKey: argocd.argoproj.io/instance
@@ -592,7 +1717,7 @@ server:
     dex.config: ""
 
   ## Configure the ingress for the Argo CD server
-  ## Ref: http://kubernetes.io/docs/user-guide/ingress/
+  ## Ref: https://kubernetes.io/docs/user-guide/ingress/
   ## @param server.ingress.enabled Enable the creation of an ingress for the Argo CD server
   ## @param server.ingress.pathType Path type for the Argo CD server ingress
   ## @param server.ingress.apiVersion Ingress API version for the Argo CD server ingress
@@ -604,6 +1729,7 @@ server:
   ## @param server.ingress.extraPaths Extra paths for the Argo CD server ingress
   ## @param server.ingress.extraTls Extra TLS configuration for the Argo CD server ingress
   ## @param server.ingress.secrets Secrets array to mount into the Ingress
+  ## @param server.ingress.ingressClassName IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)
   ##
   ingress:
     ## Set to true to enable ingress record generation
@@ -649,7 +1775,7 @@ server:
 
     ## Enable TLS configuration for the hostname defined at ingress.hostname parameter
     ## TLS certificates will be retrieved from a TLS secret with name: {{- printf "%s-tls" .Values.ingress.hostname }}
-    ## You can use the ingress.secrets parameter to create this TLS secret or relay on cert-manager to create it
+    ## You can use the ingress.secrets parameter to create this TLS secret or rely on cert-manager to create it
     ##
     tls: false
 
@@ -693,6 +1819,25 @@ server:
     ##   certificate:
     ##
 
+    ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster .
+    ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+    ##
+    ingressClassName: ""
+    ## @param server.ingress.extraRules Additional rules to be covered with this ingress record
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-rules
+    ## e.g:
+    ## extraRules:
+    ## - host: example.local
+    ##     http:
+    ##       path: /
+    ##       backend:
+    ##         service:
+    ##           name: example-svc
+    ##           port:
+    ##             name: http
+    ##
+    extraRules: []
+
   ## Metrics configuration for Argo CD server
   ##
   metrics:
@@ -706,7 +1851,7 @@ server:
       type: ClusterIP
       ## @param server.metrics.service.port Argo CD server metrics service port
       ##
-      port: 8084
+      port: 8083
 
       ## Node ports to expose
       ## @param server.metrics.service.nodePort Node port for Argo CD server metrics service
@@ -714,6 +1859,11 @@ server:
       ##
       nodePort: ""
 
+      ## @param server.metrics.service.clusterIP Argo CD server metrics service Cluster IP
+      ## e.g.:
+      ## clusterIP: None
+      ##
+      clusterIP: ""
       ## @param server.metrics.service.loadBalancerIP Argo CD server service Load Balancer IP
       ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
       ##
@@ -726,22 +1876,67 @@ server:
       ##
       loadBalancerSourceRanges: []
       ## @param server.metrics.service.externalTrafficPolicy Argo CD server service external traffic policy
-      ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+      ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
       ##
       externalTrafficPolicy: Cluster
       ## @param server.metrics.service.annotations Additional custom annotations for Argo CD server service
       ##
       annotations: {}
+      ## @param server.metrics.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+      ## If "ClientIP", consecutive client requests will be directed to the same Pod
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+      ##
+      sessionAffinity: None
+      ## @param server.metrics.service.sessionAffinityConfig Additional settings for the sessionAffinity
+      ## sessionAffinityConfig:
+      ##   clientIP:
+      ##     timeoutSeconds: 300
+      sessionAffinityConfig: {}
+
     ## Argo CD server metrics service monitor configuration
-    ## @param server.metrics.serviceMonitor.enabled Enable service monirot for Argo CD server
-    ## @param server.metrics.serviceMonitor.interval Interval for the Argo CD server service monitor
+    ##
     serviceMonitor:
+      ## @param server.metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
       enabled: false
+      ## @param server.metrics.serviceMonitor.namespace Namespace which Prometheus is running in
+      ## e.g:
+      ## namespace: monitoring
+      ##
+      namespace: ""
+      ## @param server.metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+      ##
+      jobLabel: ""
+      ## @param server.metrics.serviceMonitor.interval Interval at which metrics should be scraped
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
       interval: 30s
+      ## @param server.metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      scrapeTimeout: 10s
+      ## @param server.metrics.serviceMonitor.relabelings RelabelConfigs to apply to samples before scraping
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      relabelings: []
+      ## @param server.metrics.serviceMonitor.metricRelabelings MetricRelabelConfigs to apply to samples before ingestion
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      metricRelabelings: []
+      ## @param server.metrics.serviceMonitor.selector ServiceMonitor selector labels
+      ## ref: https://github.com/bitnami/charts/tree/main/bitnami/prometheus-operator#prometheus-configuration
+      ##
+      ## selector:
+      ##   prometheus: my-prometheus
+      ##
+      selector: {}
+      ## @param server.metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+      ##
+      honorLabels: false
 
   ## Configure the ingress resource that allows you to access the Argo CD gRPC API
-  ## Ref: http://kubernetes.io/docs/user-guide/ingress/
-  ## Ref: https://argoproj.github.io/argo-cd/operator-manual/ingress/
+  ## Ref: https://kubernetes.io/docs/user-guide/ingress/
+  ## Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/
   ## @param server.ingressGrpc.enabled Enable the creation of an ingress for the Argo CD gRPC server
   ## @param server.ingressGrpc.pathType Path type for the Argo CD gRPC server ingress
   ## @param server.ingressGrpc.apiVersion Ingress API version for the Argo CD gRPC server ingress
@@ -753,6 +1948,7 @@ server:
   ## @param server.ingressGrpc.extraPaths Extra paths for the Argo CD gRPC server ingress
   ## @param server.ingressGrpc.extraTls Extra TLS configuration for the Argo CD gRPC server ingress
   ## @param server.ingressGrpc.secrets Secrets array to mount into the Ingress
+  ## @param server.ingressGrpc.ingressClassName IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)
   ##
   ingressGrpc:
     ## Set to true to enable ingress record generation
@@ -842,6 +2038,25 @@ server:
     ##   certificate:
     ##
 
+    ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster .
+    ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+    ##
+    ingressClassName: ""
+    ## @param server.ingressGrpc.extraRules Additional rules to be covered with this ingress record
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-rules
+    ## e.g:
+    ## extraRules:
+    ## - host: example.server.local
+    ##     http:
+    ##       path: /
+    ##       backend:
+    ##         service:
+    ##           name: example-svc
+    ##           port:
+    ##             name: http
+    ##
+    extraRules: []
+
   ## Argo CD server container port
   ## @param server.containerPorts.http Argo CD server HTTP container port
   ## @param server.containerPorts.https Argo CD server HTTPS container port
@@ -873,6 +2088,11 @@ server:
       http: ""
       https: ""
 
+    ## @param server.service.clusterIP Argo CD service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
     ## @param server.service.loadBalancerIP Argo CD service Load Balancer IP
     ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
     ##
@@ -885,12 +2105,25 @@ server:
     ##
     loadBalancerSourceRanges: []
     ## @param server.service.externalTrafficPolicy Argo CD service external traffic policy
-    ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
     ##
     externalTrafficPolicy: Cluster
     ## @param server.service.annotations Additional custom annotations for Argo CD service
     ##
     annotations: {}
+    ## @param server.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param server.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+    ## If "ClientIP", consecutive client requests will be directed to the same Pod
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+    ##
+    sessionAffinity: None
+    ## @param server.service.sessionAffinityConfig Additional settings for the sessionAffinity
+    ## sessionAffinityConfig:
+    ##   clientIP:
+    ##     timeoutSeconds: 300
+    sessionAffinityConfig: {}
 
   ## @param server.command Override default container command (useful when using custom images)
   ##
@@ -951,6 +2184,23 @@ server:
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   ##
   tolerations: []
+  ## @param server.schedulerName Name of the k8s scheduler (other than default)
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+  ##
+  schedulerName: ""
+  ## @param server.shareProcessNamespace Enable shared process namespace in a pod.
+  ## If set to false (default), each container will run in separate namespace, server will have PID=1.
+  ## If set to true, the /pause will run as init process and will reap any zombie PIDs,
+  ## for example, generated by a custom exec probe running longer than a probe timeoutSeconds.
+  ## Enable this only if customLivenessProbe or customReadinessProbe is used and zombie PIDs are accumulating.
+  ## Ref: https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/
+  ##
+  shareProcessNamespace: false
+  ## @param server.topologySpreadConstraints Topology Spread Constraints for pod assignment
+  ## https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  ## The value is evaluated as a template
+  ##
+  topologySpreadConstraints: []
   ## @param server.updateStrategy.type Argo CD server statefulset strategy type
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
@@ -962,6 +2212,10 @@ server:
   ## @param server.priorityClassName Argo CD server pods' priorityClassName
   ##
   priorityClassName: ""
+  ## @param server.runtimeClassName Name of the runtime class to be used by pod(s)
+  ## ref: https://kubernetes.io/docs/concepts/containers/runtime-class/
+  ##
+  runtimeClassName: ""
   ## @param server.lifecycleHooks for the Argo CD server container(s) to automate configuration before or after startup
   ##
   lifecycleHooks: {}
@@ -1017,7 +2271,11 @@ server:
     ##
     name: ""
     ## @param server.serviceAccount.automountServiceAccountToken Automount service account token for the server service account
+    ##
     automountServiceAccountToken: true
+    ## @param server.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+    ##
+    annotations: {}
 
 ## @section Argo CD repo server Parameters
 
@@ -1029,6 +2287,20 @@ repoServer:
   replicaCount: 1
   ## Configure extra options for Argo CD repo server containers' liveness and readiness probes
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ## @param repoServer.startupProbe.enabled Enable startupProbe on Argo CD repo server nodes
+  ## @param repoServer.startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param repoServer.startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param repoServer.startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param repoServer.startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param repoServer.startupProbe.successThreshold Success threshold for startupProbe
+  ##
+  startupProbe:
+    enabled: false
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
   ## @param repoServer.livenessProbe.enabled Enable livenessProbe on Argo CD repo server nodes
   ## @param repoServer.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
   ## @param repoServer.livenessProbe.periodSeconds Period seconds for livenessProbe
@@ -1057,6 +2329,9 @@ repoServer:
     timeoutSeconds: 1
     failureThreshold: 3
     successThreshold: 1
+  ## @param repoServer.customStartupProbe Custom startupProbe that overrides the default one
+  ##
+  customStartupProbe: {}
   ## @param repoServer.customLivenessProbe Custom livenessProbe that overrides the default one
   ##
   customLivenessProbe: {}
@@ -1064,7 +2339,7 @@ repoServer:
   ##
   customReadinessProbe: {}
   ## Argo CD repo server resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ## @param repoServer.resources.limits The resources limits for the Argo CD repo server containers
   ## @param repoServer.resources.requests The requested resources for the Argo CD repo server containers
   ##
@@ -1083,10 +2358,24 @@ repoServer:
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param repoServer.containerSecurityContext.enabled Enabled Argo CD repo server containers' Security Context
   ## @param repoServer.containerSecurityContext.runAsUser Set Argo CD repo server containers' Security Context runAsUser
+  ## @param repoServer.containerSecurityContext.allowPrivilegeEscalation Set Argo CD repo server containers' Security Context allowPrivilegeEscalation
+  ## @param repoServer.containerSecurityContext.capabilities.drop Set Argo CD containers' repo server Security Context capabilities to be dropped
+  ## @param repoServer.containerSecurityContext.readOnlyRootFilesystem Set Argo CD containers' repo server Security Context readOnlyRootFilesystem
+  ## @param repoServer.containerSecurityContext.runAsNonRoot Set Argo CD repo server containers' Security Context runAsNonRoot
+  ## @param repoServer.containerSecurityContext.privileged Set repoServer container's Security Context privileged
+  ## @param repoServer.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
   ##
   containerSecurityContext:
     enabled: true
     runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
 
   ## Repo server service parameters
   ##
@@ -1103,6 +2392,11 @@ repoServer:
     ##
     nodePort: ""
 
+    ## @param repoServer.service.clusterIP Repo server service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
     ## @param repoServer.service.loadBalancerIP Repo server service Load Balancer IP
     ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
     ##
@@ -1115,12 +2409,25 @@ repoServer:
     ##
     loadBalancerSourceRanges: []
     ## @param repoServer.service.externalTrafficPolicy Repo server service external traffic policy
-    ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
     ##
     externalTrafficPolicy: Cluster
     ## @param repoServer.service.annotations Additional custom annotations for Repo server service
     ##
     annotations: {}
+    ## @param repoServer.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param repoServer.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+    ## If "ClientIP", consecutive client requests will be directed to the same Pod
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+    ##
+    sessionAffinity: None
+    ## @param repoServer.service.sessionAffinityConfig Additional settings for the sessionAffinity
+    ## sessionAffinityConfig:
+    ##   clientIP:
+    ##     timeoutSeconds: 300
+    sessionAffinityConfig: {}
 
   ## Argo CD repo server log format: text|json
   ## @param repoServer.logFormat Format for the Argo CD repo server logs. Options: [text, json]
@@ -1137,7 +2444,7 @@ repoServer:
   ##
   containerPorts:
     repoServer: 8081
-    metrics: ""
+    metrics: 8084
 
   ## Metrics configuration for Argo CD repo server
   ##
@@ -1160,6 +2467,11 @@ repoServer:
       ##
       nodePort: ""
 
+      ## @param repoServer.metrics.service.clusterIP Argo CD repo server metrics service Cluster IP
+      ## e.g.:
+      ## clusterIP: None
+      ##
+      clusterIP: ""
       ## @param repoServer.metrics.service.loadBalancerIP Argo CD repo server service Load Balancer IP
       ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
       ##
@@ -1172,18 +2484,63 @@ repoServer:
       ##
       loadBalancerSourceRanges: []
       ## @param repoServer.metrics.service.externalTrafficPolicy Argo CD repo server service external traffic policy
-      ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+      ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
       ##
       externalTrafficPolicy: Cluster
       ## @param repoServer.metrics.service.annotations Additional custom annotations for Argo CD repo server service
       ##
       annotations: {}
+      ## @param repoServer.metrics.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+      ## If "ClientIP", consecutive client requests will be directed to the same Pod
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+      ##
+      sessionAffinity: None
+      ## @param repoServer.metrics.service.sessionAffinityConfig Additional settings for the sessionAffinity
+      ## sessionAffinityConfig:
+      ##   clientIP:
+      ##     timeoutSeconds: 300
+      sessionAffinityConfig: {}
+
     ## Argo CD repo server metrics service monitor configuration
-    ## @param repoServer.metrics.serviceMonitor.enabled Enable service monirot for Argo CD repo server
-    ## @param repoServer.metrics.serviceMonitor.interval Interval for the Argo CD repo server service monitor
+    ##
     serviceMonitor:
+      ## @param repoServer.metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
       enabled: false
+      ## @param repoServer.metrics.serviceMonitor.namespace Namespace which Prometheus is running in
+      ## e.g:
+      ## namespace: monitoring
+      ##
+      namespace: ""
+      ## @param repoServer.metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+      ##
+      jobLabel: ""
+      ## @param repoServer.metrics.serviceMonitor.interval Interval at which metrics should be scraped
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
       interval: 30s
+      ## @param repoServer.metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      scrapeTimeout: 10s
+      ## @param repoServer.metrics.serviceMonitor.relabelings RelabelConfigs to apply to samples before scraping
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      relabelings: []
+      ## @param repoServer.metrics.serviceMonitor.metricRelabelings MetricRelabelConfigs to apply to samples before ingestion
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      metricRelabelings: []
+      ## @param repoServer.metrics.serviceMonitor.selector ServiceMonitor selector labels
+      ## ref: https://github.com/bitnami/charts/tree/main/bitnami/prometheus-operator#prometheus-configuration
+      ##
+      ## selector:
+      ##   prometheus: my-prometheus
+      ##
+      selector: {}
+      ## @param repoServer.metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+      ##
+      honorLabels: false
 
   ## Argo CD repo server deployment autoscaling
   ## @param repoServer.autoscaling.enabled Enable Argo CD repo server deployment autoscaling
@@ -1210,7 +2567,11 @@ repoServer:
     ##
     name: ""
     ## @param repoServer.serviceAccount.automountServiceAccountToken Automount service account token for the repo server service account
+    ##
     automountServiceAccountToken: true
+    ## @param repoServer.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+    ##
+    annotations: {}
 
   ## @param repoServer.command Override default container command (useful when using custom images)
   ##
@@ -1271,6 +2632,23 @@ repoServer:
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   ##
   tolerations: []
+  ## @param repoServer.schedulerName Name of the k8s scheduler (other than default)
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+  ##
+  schedulerName: ""
+  ## @param repoServer.shareProcessNamespace Enable shared process namespace in a pod.
+  ## If set to false (default), each container will run in separate namespace, repoServer will have PID=1.
+  ## If set to true, the /pause will run as init process and will reap any zombie PIDs,
+  ## for example, generated by a custom exec probe running longer than a probe timeoutSeconds.
+  ## Enable this only if customLivenessProbe or customReadinessProbe is used and zombie PIDs are accumulating.
+  ## Ref: https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/
+  ##
+  shareProcessNamespace: false
+  ## @param repoServer.topologySpreadConstraints Topology Spread Constraints for pod assignment
+  ## https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  ## The value is evaluated as a template
+  ##
+  topologySpreadConstraints: []
   ## @param repoServer.updateStrategy.type Argo CD repo server statefulset strategy type
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
@@ -1282,6 +2660,10 @@ repoServer:
   ## @param repoServer.priorityClassName Argo CD repo server pods' priorityClassName
   ##
   priorityClassName: ""
+  ## @param repoServer.runtimeClassName Name of the runtime class to be used by pod(s)
+  ## ref: https://kubernetes.io/docs/concepts/containers/runtime-class/
+  ##
+  runtimeClassName: ""
   ## @param repoServer.lifecycleHooks for the Argo CD repo server container(s) to automate configuration before or after startup
   ##
   lifecycleHooks: {}
@@ -1333,19 +2715,22 @@ repoServer:
 dex:
   ## Bitnami Dex image
   ## ref: https://hub.docker.com/r/bitnami/argo-cd/tags/
-  ## @param dex.image.registry Dex image registry
-  ## @param dex.image.repository Dex image repository
-  ## @param dex.image.tag Dex image tag (immutable tags are recommended)
+  ## @param dex.image.registry [default: REGISTRY_NAME] Dex image registry
+  ## @param dex.image.repository [default: REPOSITORY_NAME/dex] Dex image repository
+  ## @skip dex.image.tag Dex image tag (immutable tags are recommended)
+  ## @param dex.image.digest Dex image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
   ## @param dex.image.pullPolicy Dex image pull policy
   ## @param dex.image.pullSecrets Dex image pull secrets
+  ## @param dex.image.debug Enable Dex image debug mode
   ##
   image:
     registry: docker.io
     repository: bitnami/dex
-    tag: 2.30.0-debian-10-r85
+    tag: 2.37.0-debian-11-r100
+    digest: ""
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
     ##
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
@@ -1356,6 +2741,9 @@ dex:
     ##   - myRegistryKeySecretName
     ##
     pullSecrets: []
+    ## Enable debug mode
+    ##
+    debug: false
 
   ## Enable Dex deployment
   ## @param dex.enabled Enable the creation of a Dex deployment for SSO
@@ -1366,6 +2754,20 @@ dex:
   replicaCount: 1
   ## Configure extra options for Dex containers' liveness and readiness probes
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ## @param dex.startupProbe.enabled Enable startupProbe on Dex nodes
+  ## @param dex.startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param dex.startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param dex.startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param dex.startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param dex.startupProbe.successThreshold Success threshold for startupProbe
+  ##
+  startupProbe:
+    enabled: false
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
   ## @param dex.livenessProbe.enabled Enable livenessProbe on Dex nodes
   ## @param dex.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
   ## @param dex.livenessProbe.periodSeconds Period seconds for livenessProbe
@@ -1394,6 +2796,9 @@ dex:
     timeoutSeconds: 1
     failureThreshold: 3
     successThreshold: 1
+  ## @param dex.customStartupProbe Custom startupProbe that overrides the default one
+  ##
+  customStartupProbe: {}
   ## @param dex.customLivenessProbe Custom livenessProbe that overrides the default one
   ##
   customLivenessProbe: {}
@@ -1401,7 +2806,7 @@ dex:
   ##
   customReadinessProbe: {}
   ## Dex resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ## @param dex.resources.limits The resources limits for the Dex containers
   ## @param dex.resources.requests The requested resources for the Dex containers
   ##
@@ -1420,10 +2825,24 @@ dex:
   ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
   ## @param dex.containerSecurityContext.enabled Enabled Dex containers' Security Context
   ## @param dex.containerSecurityContext.runAsUser Set Dex containers' Security Context runAsUser
+  ## @param dex.containerSecurityContext.allowPrivilegeEscalation Set Dex containers' Security Context allowPrivilegeEscalation
+  ## @param dex.containerSecurityContext.readOnlyRootFilesystem Set Dex containers' server Security Context readOnlyRootFilesystem
+  ## @param dex.containerSecurityContext.runAsNonRoot Set Dex containers' Security Context runAsNonRoot
+  ## @param dex.containerSecurityContext.capabilities.drop Set Argo CD containers' repo server Security Context capabilities to be dropped
+  ## @param dex.containerSecurityContext.privileged Set dex container's Security Context privileged
+  ## @param dex.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
   ##
   containerSecurityContext:
     enabled: true
     runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
 
   ## Dex service parameters
   ##
@@ -1447,6 +2866,11 @@ dex:
       http: ""
       grpc: ""
 
+    ## @param dex.service.clusterIP Dex service Cluster IP
+    ## e.g.:
+    ## clusterIP: None
+    ##
+    clusterIP: ""
     ## @param dex.service.loadBalancerIP Dex service Load Balancer IP
     ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
     ##
@@ -1459,12 +2883,25 @@ dex:
     ##
     loadBalancerSourceRanges: []
     ## @param dex.service.externalTrafficPolicy Dex service external traffic policy
-    ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+    ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
     ##
     externalTrafficPolicy: Cluster
     ## @param dex.service.annotations Additional custom annotations for Dex service
     ##
     annotations: {}
+    ## @param dex.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
+    ##
+    extraPorts: []
+    ## @param dex.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+    ## If "ClientIP", consecutive client requests will be directed to the same Pod
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+    ##
+    sessionAffinity: None
+    ## @param dex.service.sessionAffinityConfig Additional settings for the sessionAffinity
+    ## sessionAffinityConfig:
+    ##   clientIP:
+    ##     timeoutSeconds: 300
+    sessionAffinityConfig: {}
 
   ## Dex container ports
   ## @param dex.containerPorts.http Dex container HTTP port
@@ -1480,7 +2917,7 @@ dex:
   ##
   metrics:
     ## Enable metrics for Argo Dex
-    ## @param dex.metrics.enabled Enable metrics for Dex
+    ## @param dex.metrics.enabled Enable metrics service for Dex
     ##
     enabled: false
     service:
@@ -1497,6 +2934,11 @@ dex:
       ##
       nodePort: ""
 
+      ## @param dex.metrics.service.clusterIP Dex service metrics service Cluster IP
+      ## e.g.:
+      ## clusterIP: None
+      ##
+      clusterIP: ""
       ## @param dex.metrics.service.loadBalancerIP Dex service Load Balancer IP
       ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
       ##
@@ -1509,18 +2951,63 @@ dex:
       ##
       loadBalancerSourceRanges: []
       ## @param dex.metrics.service.externalTrafficPolicy Dex service external traffic policy
-      ## ref http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+      ## ref https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
       ##
       externalTrafficPolicy: Cluster
       ## @param dex.metrics.service.annotations Additional custom annotations for Dex service
       ##
       annotations: {}
+      ## @param dex.metrics.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
+      ## If "ClientIP", consecutive client requests will be directed to the same Pod
+      ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
+      ##
+      sessionAffinity: None
+      ## @param dex.metrics.service.sessionAffinityConfig Additional settings for the sessionAffinity
+      ## sessionAffinityConfig:
+      ##   clientIP:
+      ##     timeoutSeconds: 300
+      sessionAffinityConfig: {}
+
     ## Dex metrics service monitor configuration
-    ## @param dex.metrics.serviceMonitor.enabled Enable service monirot for Dex
-    ## @param dex.metrics.serviceMonitor.interval Interval for the Dex service monitor
+    ##
     serviceMonitor:
+      ## @param dex.metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
       enabled: false
+      ## @param dex.metrics.serviceMonitor.namespace Namespace which Prometheus is running in
+      ## e.g:
+      ## namespace: monitoring
+      ##
+      namespace: ""
+      ## @param dex.metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+      ##
+      jobLabel: ""
+      ## @param dex.metrics.serviceMonitor.interval Interval at which metrics should be scraped
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
       interval: 30s
+      ## @param dex.metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+      ##
+      scrapeTimeout: 10s
+      ## @param dex.metrics.serviceMonitor.relabelings RelabelConfigs to apply to samples before scraping
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      relabelings: []
+      ## @param dex.metrics.serviceMonitor.metricRelabelings MetricRelabelConfigs to apply to samples before ingestion
+      ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#relabelconfig
+      ##
+      metricRelabelings: []
+      ## @param dex.metrics.serviceMonitor.selector ServiceMonitor selector labels
+      ## ref: https://github.com/bitnami/charts/tree/main/bitnami/prometheus-operator#prometheus-configuration
+      ##
+      ## selector:
+      ##   prometheus: my-prometheus
+      ##
+      selector: {}
+      ## @param dex.metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+      ##
+      honorLabels: false
 
   ## ServiceAccount configuration for the Dex
   ##
@@ -1533,7 +3020,11 @@ dex:
     ##
     name: ""
     ## @param dex.serviceAccount.automountServiceAccountToken Automount service account token for the Dex service account
+    ##
     automountServiceAccountToken: true
+    ## @param dex.serviceAccount.annotations Annotations for service account. Evaluated as a template. Only used if `create` is `true`.
+    ##
+    annotations: {}
 
   ## @param dex.command Override default container command (useful when using custom images)
   ##
@@ -1594,6 +3085,23 @@ dex:
   ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   ##
   tolerations: []
+  ## @param dex.schedulerName Name of the k8s scheduler (other than default)
+  ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+  ##
+  schedulerName: ""
+  ## @param dex.shareProcessNamespace Enable shared process namespace in a pod.
+  ## If set to false (default), each container will run in separate namespace, dex will have PID=1.
+  ## If set to true, the /pause will run as init process and will reap any zombie PIDs,
+  ## for example, generated by a custom exec probe running longer than a probe timeoutSeconds.
+  ## Enable this only if customLivenessProbe or customReadinessProbe is used and zombie PIDs are accumulating.
+  ## Ref: https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/
+  ##
+  shareProcessNamespace: false
+  ## @param dex.topologySpreadConstraints Topology Spread Constraints for pod assignment
+  ## https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  ## The value is evaluated as a template
+  ##
+  topologySpreadConstraints: []
   ## @param dex.updateStrategy.type Dex statefulset strategy type
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
@@ -1605,6 +3113,10 @@ dex:
   ## @param dex.priorityClassName Dex pods' priorityClassName
   ##
   priorityClassName: ""
+  ## @param dex.runtimeClassName Name of the runtime class to be used by pod(s)
+  ## ref: https://kubernetes.io/docs/concepts/containers/runtime-class/
+  ##
+  runtimeClassName: ""
   ## @param dex.lifecycleHooks for the Dex container(s) to automate configuration before or after startup
   ##
   lifecycleHooks: {}
@@ -1689,6 +3201,7 @@ config:
   existingStylesConfigmap: ""
 
   ## @param config.tlsCerts TLS certificates used to verify the authenticity of the repository servers
+  ## Certificates will be generated by default if the values are not set.
   ## E.g:
   ## tlsCerts:
   ##   argocd-1.example.com: |
@@ -1702,10 +3215,31 @@ config:
   ##
   tlsCerts: {}
 
+  ## @param config.gpgKeys GnuPG public keys to add to the keyring
+  ## Keys will be generated by default if the values are not set.
+  ## Note: Public keys should be exported with `gpg --export --armor <KEY>`
+  ##
+  gpgKeys: {}
+    # 4AEE18F83AFDEB23: |
+    #   -----BEGIN PGP PUBLIC KEY BLOCK-----
+    #   ...
+    #   -----END PGP PUBLIC KEY BLOCK-----
+
+  ## @param config.rbac Role-based authentication configuration
+  ##
+  rbac: {}
+    # policy.default: role:readonly
+    # policy.csv: |
+    #   # Grant all members of the group 'my-org:team-alpha; the ability to sync apps in 'my-project'
+    #   p, my-org:team-alpha, applications, sync, my-project/*, allow
+    #   # Grant all members of 'my-org:team-beta' admins
+    #   g, my-org:team-beta, role:admin
+
   ## Argo CD general secret configuration
   ##
   secret:
     ## @param config.secret.create Whether to create or not the secret
+    ##
     create: true
     ## Annotations to be added to argocd-secret
     ## @param config.secret.annotations General secret extra annotations
@@ -1726,7 +3260,7 @@ config:
     gogsSecret: ""
 
     ## Extra keys to add to the general config secret. Useful for injecting SSO secrets into environment variables.
-    ## Ref: https://argoproj.github.io/argo-cd/operator-manual/sso/
+    ## Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/#sso
     ## @param config.secret.extra Extra keys to add to the configuration secret.
     ## All values must be non-empty.
     ## E.g:
@@ -1775,8 +3309,8 @@ config:
 
   ## External Cluster Credentials
   ## Refs:
-  ## - https://argoproj.github.io/argo-cd/operator-manual/declarative-setup/#clusters
-  ## - https://argoproj.github.io/argo-cd/operator-manual/security/#external-cluster-credentials
+  ## - https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/#clusters
+  ## - https://argo-cd.readthedocs.io/en/stable/operator-manual/security/#external-cluster-credentials
   ## @param config.clusterCredentials Configure external cluster credentials
   ## E.g
   ##  - name: mycluster
@@ -1811,18 +3345,20 @@ volumePermissions:
   ## @param volumePermissions.enabled Enable init container that changes the owner/group of the PV mount point to `runAsUser:fsGroup`
   ##
   enabled: false
-  ## Bitnami Shell image
-  ## ref: https://hub.docker.com/r/bitnami/bitnami-shell/tags/
-  ## @param volumePermissions.image.registry Bitnami Shell image registry
-  ## @param volumePermissions.image.repository Bitnami Shell image repository
-  ## @param volumePermissions.image.tag Bitnami Shell image tag (immutable tags are recommended)
-  ## @param volumePermissions.image.pullPolicy Bitnami Shell image pull policy
-  ## @param volumePermissions.image.pullSecrets Bitnami Shell image pull secrets
+  ## OS Shell + Utility image
+  ## ref: https://hub.docker.com/r/bitnami/os-shell/tags/
+  ## @param volumePermissions.image.registry [default: REGISTRY_NAME] OS Shell + Utility image registry
+  ## @param volumePermissions.image.repository [default: REPOSITORY_NAME/os-shell] OS Shell + Utility image repository
+  ## @skip volumePermissions.image.tag OS Shell + Utility image tag (immutable tags are recommended)
+  ## @param volumePermissions.image.digest OS Shell + Utility image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
+  ## @param volumePermissions.image.pullPolicy OS Shell + Utility image pull policy
+  ## @param volumePermissions.image.pullSecrets OS Shell + Utility image pull secrets
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
-    tag: 10-debian-10-r235
+    repository: bitnami/os-shell
+    tag: 11-debian-11-r92
+    digest: ""
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
     ## Secrets must be manually created in the namespace.
@@ -1833,7 +3369,7 @@ volumePermissions:
     ##
     pullSecrets: []
   ## Init container's resource requests and limits
-  ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
   ## @param volumePermissions.resources.limits The resources limits for the init container
   ## @param volumePermissions.resources.requests The requested resources for the init container
   ##
@@ -1864,19 +3400,21 @@ rbac:
 redis:
   ## Bitnami Redis image
   ## ref: https://hub.docker.com/r/bitnami/redis/tags/
-  ## @param redis.image.registry Argo CD controller image registry
-  ## @param redis.image.repository Argo CD controller image repository
-  ## @param redis.image.tag Argo CD controller image tag (immutable tags are recommended)
-  ## @param redis.image.pullPolicy Argo CD controller image pull policy
-  ## @param redis.image.pullSecrets Argo CD controller image pull secrets
+  ## @param redis.image.registry [default: REGISTRY_NAME] Redis image registry
+  ## @param redis.image.repository [default: REPOSITORY_NAME/redis] Redis image repository
+  ## @skip redis.image.tag Redis image tag (immutable tags are recommended)
+  ## @param redis.image.digest Redis image digest in the way sha256:aa.... Please note this parameter, if set, will override the tag
+  ## @param redis.image.pullPolicy Redis image pull policy
+  ## @param redis.image.pullSecrets Redis image pull secrets
   ##
   image:
     registry: docker.io
     repository: bitnami/redis
-    tag: 6.2.6-debian-10-r23
+    tag: 7.2.3-debian-11-r2
+    digest: ""
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
-    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ## ref: https://kubernetes.io/docs/user-guide/images/#pre-pulling-images
     ##
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
@@ -1911,29 +3449,29 @@ redis:
     ##
     existingSecret: ""
     ##
-    ## Password key to be retrieved from Redis&trade; secret
+    ## Password key to be retrieved from Redis&reg; secret
     ##
     existingSecretPasswordKey: 'redis-password'
 
   ## Cluster settings
-  ## @disabled-param redis.architecture Redis dependency architecture. Either 'standalone' or 'replicaset'
+  ## @param redis.architecture Redis&reg; architecture. Allowed values: `standalone` or `replication`
   ## TODO(miguelaeh): We need to test the chart with redis sentinel, it seems to be supported at: https://github.com/argoproj/argo-cd/blob/2a410187565e15633b6f2a8c8d8da22cf02b257d/util/cache/cache.go#L40
   ##
-  ## architecture: standalone
+  architecture: standalone
 
 ##
-## External Redis&trade;
+## External Redis&reg;
 ##
 externalRedis:
-  ## Redis&trade; host
+  ## Redis&reg; host
   ## @param externalRedis.host External Redis host
   ##
   host: ""
-  ## Redis&trade; port
+  ## Redis&reg; port
   ## @param externalRedis.port External Redis port
   ##
   port: 6379
-  ## Redis&trade; password for authentication
+  ## Redis&reg; password for authentication
   ## Ignored if existingSecret is set
   ## @param externalRedis.password External Redis password
   ##
@@ -1942,7 +3480,37 @@ externalRedis:
   ## @param externalRedis.existingSecret Existing secret for the external redis
   ##
   existingSecret: ""
-  ## Password key to be retrieved from Redis&trade; secret
+  ## Password key to be retrieved from Redis&reg; secret
   ## @param externalRedis.existingSecretPasswordKey Password key for the existing secret containing the external redis password
   ##
   existingSecretPasswordKey: 'redis-password'
+
+## Wait-for-redis init container configuration
+##
+redisWait:
+  ## @param redisWait.enabled Enables waiting for redis
+  ##
+  enabled: true
+  ## @param redisWait.extraArgs Additional arguments for the redis-cli call, such as TLS
+  ##
+  extraArgs: ''
+  ## @param redisWait.containerSecurityContext.enabled Enabled Argo CD repo server containers' Security Context
+  ## @param redisWait.containerSecurityContext.runAsUser Set Argo CD repo server containers' Security Context runAsUser
+  ## @param redisWait.containerSecurityContext.allowPrivilegeEscalation Set Argo CD repo server containers' Security Context allowPrivilegeEscalation
+  ## @param redisWait.containerSecurityContext.capabilities.drop Set Argo CD containers' repo server Security Context capabilities to be dropped
+  ## @param redisWait.containerSecurityContext.readOnlyRootFilesystem Set Argo CD containers' repo server Security Context readOnlyRootFilesystem
+  ## @param redisWait.containerSecurityContext.runAsNonRoot Set Argo CD repo server containers' Security Context runAsNonRoot
+  ## @param redisWait.containerSecurityContext.privileged Set redisWait container's Security Context privileged
+  ## @param redisWait.containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
+  ##
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    privileged: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"

@@ -1,3 +1,8 @@
+{{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{/* vim: set filetype=mustache: */}}
 
 
@@ -6,13 +11,6 @@ Return the proper InfluxDB&trade; image name
 */}}
 {{- define "influxdb.image" -}}
 {{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
-{{- end -}}
-
-{{/*
-Return the proper InfluxDB Relay&trade; image name
-*/}}
-{{- define "influxdb.relay.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.relay.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
@@ -37,10 +35,28 @@ Return the proper azure-cli image name
 {{- end -}}
 
 {{/*
+Return the proper aws-cli image name
+*/}}
+{{- define "awsCli.image" -}}
+{{ include "common.images.image" (dict "imageRoot" .Values.backup.uploadProviders.aws.image "global" .Values.global) }}
+{{- end -}}
+
+{{/*
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "influxdb.imagePullSecrets" -}}
-{{ include "common.images.pullSecrets" (dict "images" (list .Values.image .Values.relay.image .Values.volumePermissions.image .Values.backup.uploadProviders.google.image .Values.backup.uploadProviders.azure.image) "global" .Values.global) }}
+{{ include "common.images.pullSecrets" (dict "images" (list .Values.image .Values.volumePermissions.image .Values.backup.uploadProviders.google.image .Values.backup.uploadProviders.azure.image) "global" .Values.global) }}
+{{- end -}}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "influxdb.serviceAccountName" -}}
+{{- if or .Values.serviceAccount.enabled .Values.serviceAccount.create -}}
+    {{ default (include "common.names.fullname" .) .Values.serviceAccount.name }}
+{{- else -}}
+    {{ default "default" .Values.serviceAccount.name }}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -92,62 +108,4 @@ Get the InfluxDB&trade; initialization scripts secret.
 */}}
 {{- define "influxdb.initdbScriptsSecret" -}}
 {{- printf "%s" (tpl .Values.influxdb.initdbScriptsSecret $) -}}
-{{- end -}}
-
-{{/*
-Return the InfluxDB&trade; configuration configmap.
-*/}}
-{{- define "influxdb.relay.configmapName" -}}
-{{- if .Values.relay.existingConfiguration -}}
-    {{- printf "%s" (tpl .Values.relay.existingConfiguration $) -}}
-{{- else -}}
-    {{- printf "%s-relay" (include "common.names.fullname" .) -}}
-{{- end -}}
-{{- end -}}
-
-
-{{/*
-Return the appropriate apiVersion for networkPolicy
-*/}}
-{{- define "influxdb.networkPolicy.apiVersion" -}}
-{{- if semverCompare ">=1.4-0, <1.7-0" .Capabilities.KubeVersion.GitVersion -}}
-"extensions/v1beta1"
-{{- else if semverCompare "^1.7-0" .Capabilities.KubeVersion.GitVersion -}}
-"networking.k8s.io/v1"
-{{- end -}}
-{{- end -}}
-
-{{/*
-Compile all warnings into a single message, and call fail.
-*/}}
-{{- define "influxdb.validateValues" -}}
-{{- $messages := list -}}
-{{- $messages := append $messages (include "influxdb.validateValues.architecture" .) -}}
-{{- $messages := append $messages (include "influxdb.validateValues.replicaCount" .) -}}
-{{- $messages := without $messages "" -}}
-{{- $message := join "\n" $messages -}}
-
-{{- if $message -}}
-{{-   printf "\nVALUES VALIDATION:\n%s" $message | fail -}}
-{{- end -}}
-{{- end -}}
-
-{{/* Validate values of InfluxDB&trade; - must provide a valid architecture */}}
-{{- define "influxdb.validateValues.architecture" -}}
-{{- if and (ne .Values.architecture "standalone") (ne .Values.architecture "high-availability") -}}
-influxdb: architecture
-    Invalid architecture selected. Valid values are "standalone" and
-    "high-availability". Please set a valid architecture (--set architecture="xxxx")
-{{- end -}}
-{{- end -}}
-
-{{/* Validate values of InfluxDB&trade; - number of replicas */}}
-{{- define "influxdb.validateValues.replicaCount" -}}
-{{- $replicaCount := int .Values.influxdb.replicaCount }}
-{{- if and (eq .Values.architecture "standalone") (gt $replicaCount 1) -}}
-influxdb: replicaCount
-    The standalone architecture doesn't allow to run more than 1 replica.
-    Please set a valid number of replicas (--set influxdb.replicaCount=1) or
-    use the "high-availability" architecture (--set architecture="high-availability")
-{{- end -}}
 {{- end -}}
